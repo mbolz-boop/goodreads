@@ -25,12 +25,14 @@ const KONFIG = {
      name    – erscheint als "ca. 6 × <name>"
      wert    – Zahl in der angegebenen Einheit
      einheit – 'Std.' (Lesedauer) oder 'Seiten' (Seitenzahl)
-     quelle  – kurze Herkunft / Hinweis, wird klein angezeigt
+     quelle  – Hinweis/Herkunft, wird klein angezeigt
    Neue Einträge einfach hinzufügen; die Reihenfolge ist egal. */
 const VERGLEICHE = [
   // ---- Lesedauer (Stunden) ----
   { name: 'Fußballspiel (90 Min. + 15 Min. Halbzeit)', wert: 1.75, einheit: 'Std.',
     quelle: 'Regelspielzeit 2 × 45 Min. plus Pause, ohne Nachspielzeit' },
+  { name: 'Bahnfahrt Berlin–München (ICE)', wert: 4, einheit: 'Std.',
+    quelle: 'schnellste ICE-Verbindungen ca. 4 Std., viele Züge eher 4,5 Std.' },
   { name: 'Marathonlauf als Hobbyläufer', wert: 4.5, einheit: 'Std.',
     quelle: 'typische Zielzeit von Freizeitläufern ca. 4–5 Std.' },
   { name: 'Flug Berlin–New York', wert: 9, einheit: 'Std.',
@@ -232,6 +234,15 @@ tfoot td { font-weight: 650; border-bottom: 0; }
 .ohne-liste .meta { font-size: .82rem; color: var(--text-3); }
 .ohne-liste form { display: flex; gap: 8px; align-items: center; }
 .ohne-liste .status { font-size: .8rem; color: var(--ok); }
+/* Tabs */
+.tabs { display: flex; gap: 4px; overflow-x: auto; margin: 0 0 16px; border-bottom: 1px solid var(--border); scrollbar-width: thin; }
+.tabs button { border: 0; border-radius: 8px 8px 0 0; background: transparent; color: var(--text-2); padding: 10px 14px; white-space: nowrap; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs button:hover { background: var(--surface-2); }
+.tabs button[aria-selected=true] { color: var(--text); font-weight: 600; border-bottom-color: var(--accent); }
+.tab-panel { display: none; }
+.tab-panel.aktiv { display: block; }
+.ohne-datum-hinweis { font-size: .85rem; color: var(--warn-text); background: var(--warn-bg); border-radius: 8px; padding: 6px 10px; margin: 0 0 8px; }
+.ohne-datum-hinweis:empty { display: none; }
 footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top: 32px; }
 </style>
 </head>
@@ -271,40 +282,75 @@ footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top
       </div>
     </section>
 
+    <nav class="tabs" role="tablist" aria-label="Bereiche">
+      <button type="button" role="tab" data-tab="uebersicht">Übersicht</button>
+      <button type="button" role="tab" data-tab="jahre">Jahre</button>
+      <button type="button" role="tab" data-tab="autoren">Autoren &amp; Bücher</button>
+      <button type="button" role="tab" data-tab="bewertungen">Bewertungen</button>
+      <button type="button" role="tab" data-tab="spiel">Spielerisches</button>
+      <button type="button" role="tab" data-tab="qualitaet">Datenqualität</button>
+    </nav>
+
     <div id="hinweise"></div>
 
-    <section class="card">
-      <h2 id="kpi-titel">Kennzahlen</h2>
-      <div class="kpis" id="kpis"></div>
-    </section>
+    <!-- Tab: Übersicht -->
+    <div class="tab-panel" role="tabpanel" data-panel="uebersicht">
+      <section class="card">
+        <h2 id="kpi-titel">Kennzahlen</h2>
+        <div class="kpis" id="kpis"></div>
+      </section>
 
-    <section class="card">
-      <h2>Zum Vergleich</h2>
-      <div class="vgl-grid">
-        <div><h3 id="vgl-zeit-titel">Lesedauer</h3><ul class="vgl-liste" id="vgl-zeit"></ul></div>
-        <div><h3 id="vgl-seiten-titel">Seiten</h3><ul class="vgl-liste" id="vgl-seiten"></ul></div>
-      </div>
-      <p class="richtwert">Richtwerte, je nach Ausgabe, Schnitt oder Strecke unterschiedlich. Alle Angaben gerundet („ca.“).</p>
-    </section>
-
-    <section class="card">
-      <div class="chart-head">
-        <h2>Pro Jahr</h2>
-        <div class="seg" role="group" aria-label="Diagramm zeigt">
-          <button type="button" data-modus="buecher" aria-pressed="true">Bücher</button>
-          <button type="button" data-modus="seiten" aria-pressed="false">Seiten</button>
+      <section class="card">
+        <h2>Zum Vergleich</h2>
+        <div class="vgl-grid">
+          <div><h3 id="vgl-zeit-titel">Lesedauer</h3><ul class="vgl-liste" id="vgl-zeit"></ul></div>
+          <div><h3 id="vgl-seiten-titel">Seiten</h3><ul class="vgl-liste" id="vgl-seiten"></ul></div>
         </div>
-      </div>
-      <div id="chart"></div>
-      <p class="chart-hinweis" id="chart-hinweis"></p>
-      <div class="tbl-wrap"><table id="tbl-jahre"></table></div>
-    </section>
+        <p class="richtwert">Richtwerte, je nach Ausgabe oder Schnitt unterschiedlich. Alle Angaben gerundet („ca.“).</p>
+      </section>
+    </div>
 
-    <section class="card" id="ohne-seiten-card">
-      <h2 id="ohne-titel">Bücher ohne Seitenzahl</h2>
-      <p class="muted small" style="margin-top:-6px">Diese Bücher haben in der CSV keine oder 0 Seiten und fehlen deshalb in der Seitensumme. Trage die Seitenzahl hier nach – sie wird nur in deinem Browser gespeichert, die CSV bleibt unverändert.</p>
-      <ul class="ohne-liste" id="ohne-liste"></ul>
-    </section>
+    <!-- Tab: Jahre -->
+    <div class="tab-panel" role="tabpanel" data-panel="jahre">
+      <section class="card">
+        <div class="chart-head">
+          <h2>Pro Jahr</h2>
+          <div class="seg" role="group" aria-label="Diagramm zeigt">
+            <button type="button" data-modus="buecher" aria-pressed="true">Bücher</button>
+            <button type="button" data-modus="seiten" aria-pressed="false">Seiten</button>
+          </div>
+        </div>
+        <p class="ohne-datum-hinweis" id="jahre-ohne-datum"></p>
+        <div id="chart"></div>
+        <p class="chart-hinweis" id="chart-hinweis"></p>
+        <div class="tbl-wrap"><table id="tbl-jahre"></table></div>
+      </section>
+    </div>
+
+    <!-- Tab: Autoren & Bücher (Stufe 4) -->
+    <div class="tab-panel" role="tabpanel" data-panel="autoren">
+      <section class="card"><p class="muted">Top-Autoren, Seitenlängen, Erscheinungsjahre, Verlage und Regale folgen in Stufe 4.</p></section>
+    </div>
+
+    <!-- Tab: Bewertungen (Stufe 4) -->
+    <div class="tab-panel" role="tabpanel" data-panel="bewertungen">
+      <section class="card"><p class="muted">Bewertungsvergleich, Sterne-Verteilung und Bestenliste folgen in Stufe 4.</p></section>
+    </div>
+
+    <!-- Tab: Spielerisches (Stufe 5) -->
+    <div class="tab-panel" role="tabpanel" data-panel="spiel">
+      <section class="card"><p class="muted">Meilensteine, Bücherstapel, Zufallsbuch und Jahresrückblick folgen in Stufe 5.</p></section>
+    </div>
+
+    <!-- Tab: Datenqualität -->
+    <div class="tab-panel" role="tabpanel" data-panel="qualitaet">
+      <section class="card" id="ohne-seiten-card">
+        <h2 id="ohne-titel">Bücher ohne Seitenzahl</h2>
+        <p class="muted small" style="margin-top:-6px">Diese Bücher haben in der CSV keine oder 0 Seiten und fehlen deshalb in der Seitensumme. Trage die Seitenzahl hier nach – sie wird nur in deinem Browser gespeichert, die CSV bleibt unverändert. Nachgetragene Werte fließen in alle Auswertungen ein.</p>
+        <ul class="ohne-liste" id="ohne-liste"></ul>
+      </section>
+      <section class="card"><p class="muted">Dubletten, Ausreißer und die Gesamtübersicht folgen in Stufe 6.</p></section>
+    </div>
   </main>
 
   <footer>Läuft komplett lokal · keine Server, kein Tracking · Daten liegen im localStorage dieses Browsers</footer>
@@ -387,31 +433,72 @@ function buchId(d) {
   return d['Book Id'] ? 'gr:' + d['Book Id'] : 'ta:' + d['Title'] + '|' + d['Author'];
 }
 
-/** Datensätze → Liste gelesener Bücher. overrides: {buchId: seiten} (manuell nachgetragen) */
+/** Goodreads schreibt ISBNs als ="978…" – nur Ziffern und X behalten */
+function bereinigeISBN(s) {
+  return String(s ?? '').replace(/[^0-9Xx]/g, '').toUpperCase();
+}
+
+/** Jahreszahl (Goodreads kennt auch negative Jahre für antike Werke) → Zahl oder null */
+function parseJahr(s) {
+  const t = String(s ?? '').trim();
+  if (!/^-?\d{1,4}$/.test(t)) return null;
+  const n = parseInt(t, 10);
+  return n !== 0 ? n : null;
+}
+
+/** Bewertung als Zahl; leer/ungültig → null */
+function parseKomma(s) {
+  const n = parseFloat(String(s ?? '').replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+}
+
+const STANDARDREGALE = ['read', 'to-read', 'currently-reading'];
+
+/** Ein Datensatz → normalisiertes Buch. overrides: {buchId: seiten} (manuell nachgetragen/korrigiert) */
+function normalisiereEintrag(d, overrides = {}) {
+  const id = buchId(d);
+  const seitenCSV = parseSeiten(d['Number of Pages']);
+  const manuell = parseSeiten(overrides[id]);
+  const dat = parseDatum(d['Date Read']);
+  const hinzu = parseDatum(d['Date Added']);
+  const bewertung = parseInt(d['My Rating'], 10);
+  const anzahl = parseInt(d['Read Count'], 10);
+  const original = parseJahr(d['Original Publication Year']);
+  const ausgabe = parseJahr(d['Year Published']);
+  return {
+    id,
+    regal: (d['Exclusive Shelf'] || '').trim().toLowerCase(),
+    titel: d['Title'] || '(ohne Titel)',
+    autor: d['Author'] || '',
+    weitereAutoren: (d['Additional Authors'] || '').split(',').map(a => a.trim()).filter(Boolean),
+    isbn: bereinigeISBN(d['ISBN']),
+    isbn13: bereinigeISBN(d['ISBN13']),
+    verlag: (d['Publisher'] || '').trim(),
+    seitenCSV,
+    seiten: manuell ?? seitenCSV,          // manuelle Korrektur hat Vorrang
+    seitenManuell: manuell != null,
+    datum: dat ? dat.datum : null,
+    jahr: dat ? dat.jahr : null,
+    hinzugefuegt: hinzu ? hinzu.datum : null,
+    // Erscheinungsjahr: Original Publication Year, sonst Jahr der Ausgabe
+    erscheinungsjahr: original ?? ausgabe,
+    erscheinungsjahrQuelle: original != null ? 'original' : ausgabe != null ? 'ausgabe' : null,
+    bewertung: bewertung >= 1 && bewertung <= 5 ? bewertung : 0, // 0 = nicht bewertet
+    durchschnitt: parseKomma(d['Average Rating']),
+    regale: (d['Bookshelves'] || '').split(',').map(r => r.trim().toLowerCase())
+      .filter(r => r && !STANDARDREGALE.includes(r)),
+    leseanzahl: Number.isFinite(anzahl) && anzahl > 1 ? anzahl : 1,
+  };
+}
+
+/** Alle Einträge (alle Regale) */
+function normalisiereAlle(datensaetze, overrides = {}) {
+  return datensaetze.map(d => normalisiereEintrag(d, overrides));
+}
+
+/** Nur gelesene Bücher (Exclusive Shelf = read) – Grundlage aller Lese-Statistiken */
 function normalisiereBuecher(datensaetze, overrides = {}) {
-  const buecher = [];
-  for (const d of datensaetze) {
-    if ((d['Exclusive Shelf'] || '').toLowerCase() !== 'read') continue;
-    const id = buchId(d);
-    const seitenCSV = parseSeiten(d['Number of Pages']);
-    const manuell = seitenCSV == null ? parseSeiten(overrides[id]) : null;
-    const dat = parseDatum(d['Date Read']);
-    const bewertung = parseInt(d['My Rating'], 10);
-    const anzahl = parseInt(d['Read Count'], 10);
-    buecher.push({
-      id,
-      titel: d['Title'] || '(ohne Titel)',
-      autor: d['Author'] || '',
-      seitenCSV,
-      seiten: seitenCSV ?? manuell,
-      seitenManuell: manuell != null,
-      datum: dat ? dat.datum : null,
-      jahr: dat ? dat.jahr : null,
-      bewertung: bewertung >= 1 && bewertung <= 5 ? bewertung : 0, // 0 = nicht bewertet
-      leseanzahl: Number.isFinite(anzahl) && anzahl > 1 ? anzahl : 1,
-    });
-  }
-  return buecher;
+  return normalisiereAlle(datensaetze, overrides).filter(b => b.regal === 'read');
 }
 
 /** jahr: 'alle' | 'ohne' | Zahl */
@@ -568,12 +655,13 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
 
   const state = {
     datensaetze: [],
-    buecher: [],
+    alle: [],      // alle Regale (to-read u. a. für den Zufallsgenerator)
+    buecher: [],   // nur Exclusive Shelf = read
     dateiname: '',
     speicherWarnung: false,
     overrides: ladeJSON(SPEICHER.seiten, {}),
     einst: Object.assign(
-      { jahr: 'alle', mehrfach: false, minutenProSeite: KONFIG.minutenProSeite, diagramm: 'buecher' },
+      { jahr: 'alle', mehrfach: false, minutenProSeite: KONFIG.minutenProSeite, diagramm: 'buecher', tab: 'uebersicht' },
       ladeJSON(SPEICHER.einstellungen, {})
     ),
   };
@@ -622,7 +710,8 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
   }
 
   function neuBerechnen() {
-    state.buecher = normalisiereBuecher(state.datensaetze, state.overrides);
+    state.alle = normalisiereAlle(state.datensaetze, state.overrides);
+    state.buecher = state.alle.filter(b => b.regal === 'read');
     const j = state.einst.jahr;
     const gueltig = j === 'alle' || (j === 'ohne' && state.buecher.some(b => b.jahr == null)) ||
       state.buecher.some(b => b.jahr === Number(j));
@@ -640,6 +729,7 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     const kAlle = berechneKennzahlen(alle, o);
 
     renderSteuerung(alle);
+    renderTabs();
     renderHinweise(kAlle);
     renderKennzahlen(k, jahr);
     renderVergleiche(k);
@@ -674,11 +764,11 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
       h.push('Die CSV ist zu groß für den Browser-Speicher und wurde nicht gespeichert. Beim nächsten Öffnen musst du sie erneut laden.');
     }
     if (kAlle.ohneDatum) {
-      h.push(`<strong>${zahl(kAlle.ohneDatum)} ${kAlle.ohneDatum === 1 ? 'Buch' : 'Bücher'} ohne Lesedatum:</strong> in der Gesamtstatistik enthalten, aber nicht in der Jahresauswertung.`);
+      h.push(`<strong>${zahl(kAlle.ohneDatum)} ${kAlle.ohneDatum === 1 ? 'Buch' : 'Bücher'} ohne Lesedatum:</strong> in der Gesamtstatistik enthalten, aber nicht in Jahres-, Monats- und Tempo-Auswertungen.`);
     }
     const offen = state.buecher.filter(b => b.seiten == null).length;
     if (offen) {
-      h.push(`<strong>${zahl(offen)} ${offen === 1 ? 'Buch' : 'Bücher'} ohne Seitenzahl:</strong> ${offen === 1 ? 'zählt' : 'zählen'} als gelesen, aber nicht zur Seitensumme und Lesedauer. <a href="#ohne-seiten-card">Seitenzahl nachtragen</a>`);
+      h.push(`<strong>${zahl(offen)} ${offen === 1 ? 'Buch' : 'Bücher'} ohne Seitenzahl:</strong> ${offen === 1 ? 'zählt' : 'zählen'} als gelesen, aber nicht zur Seitensumme und Lesedauer. <a href="#" data-gehe-tab="qualitaet">Seitenzahl nachtragen</a>`);
     }
     $('hinweise').innerHTML = h.map(t => `<p class="hinweis">${t}</p>`).join('');
   }
@@ -737,7 +827,22 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     return { max: Math.ceil(max / s) * s, schritt: s };
   }
 
+  function ohneDatumText(alle) {
+    const n = alle.filter(b => b.jahr == null).length;
+    return n ? `${zahl(n)} ${n === 1 ? 'Buch' : 'Bücher'} ohne Lesedatum nicht berücksichtigt.` : '';
+  }
+
+  function renderTabs() {
+    document.querySelectorAll('.tabs [data-tab]').forEach(b => {
+      const an = b.dataset.tab === state.einst.tab;
+      b.setAttribute('aria-selected', String(an));
+      b.tabIndex = an ? 0 : -1;
+    });
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('aktiv', p.dataset.panel === state.einst.tab));
+  }
+
   function renderJahre(alle, o) {
+    $('jahre-ohne-datum').textContent = ohneDatumText(alle);
     const daten = jahresAuswertung(alle, o);
     const modus = state.einst.diagramm;
     const sel = state.einst.jahr;
@@ -792,9 +897,7 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     s += '</svg><div class="tooltip hidden" id="tooltip"></div>';
     chart.innerHTML = s;
 
-    const kAlle = berechneKennzahlen(alle, o);
-    const notizen = ['Klick auf einen Balken filtert nach diesem Jahr.'];
-    if (kAlle.ohneDatum) notizen.push(`${zahl(kAlle.ohneDatum)} ${kAlle.ohneDatum === 1 ? 'Buch' : 'Bücher'} ohne Lesedatum nicht enthalten.`);
+    const notizen = ['Klick auf einen Balken oder eine Zeile filtert nach diesem Jahr.'];
     if (o.mehrfach && alle.some(b => b.leseanzahl > 1)) notizen.push('Wiederholte Lesungen zählen im Jahr des (letzten) Lesedatums – Goodreads exportiert nur dieses.');
     $('chart-hinweis').textContent = notizen.join(' ');
 
@@ -846,6 +949,19 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
   // Drop überall auf der Seite erlauben (lädt neue Datei)
   window.addEventListener('dragover', e => e.preventDefault());
   window.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files[0]) liesDatei(e.dataTransfer.files[0]); });
+
+  document.querySelectorAll('.tabs [data-tab]').forEach(b => b.addEventListener('click', () => {
+    state.einst.tab = b.dataset.tab; speichereEinstellungen(); renderTabs();
+    b.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    if (b.dataset.tab === 'jahre') renderJahre(state.buecher, opt()); // Diagrammbreite neu messen
+  }));
+  document.querySelector('.tabs').addEventListener('keydown', e => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    const tabs = [...document.querySelectorAll('.tabs [data-tab]')];
+    const i = tabs.findIndex(t => t.dataset.tab === state.einst.tab);
+    const n = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+    n.click(); n.focus();
+  });
 
   $('btn-neu').addEventListener('click', () => zeigeUpload(true));
   $('btn-reset').addEventListener('click', () => {
@@ -907,6 +1023,11 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     }, 120);
   });
   $('tbl-jahre').addEventListener('click', e => { const tr = e.target.closest('tr[data-jahr]'); if (tr) waehleJahr(Number(tr.dataset.jahr)); });
+
+  $('hinweise').addEventListener('click', e => {
+    const a = e.target.closest('[data-gehe-tab]');
+    if (a) { e.preventDefault(); document.querySelector(`.tabs [data-tab="${a.dataset.geheTab}"]`).click(); }
+  });
 
   $('ohne-liste').addEventListener('submit', e => {
     e.preventDefault();

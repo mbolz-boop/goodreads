@@ -1,19 +1,28 @@
 Book Id,Title,Author,Author l-f,Additional Authors,ISBN,ISBN13,My Rating,Average Rating,Publisher,Binding,Number of Pages,Year Published,Original Publication Year,Date Read,Date Added,Bookshelves,Bookshelves with positions,Exclusive Shelf,My Review,Spoiler,Private Notes,Read Count,Owned Copies
-900001,Das Leuchten über Hallig Nord,Greta Holm,"Holm, Greta",,"=""3000000001""","=""9783000000011""",4,3.91,Nordlicht Verlag,Taschenbuch,312,2021,2021,2023/03/14,2023/01/02,,,read,,,,1,0
-900002,"Salz, Stein und Sterne",Jonas Feld,"Feld, Jonas",,"=""3000000002""","=""9783000000028""",5,4.20,Kieselverlag,Gebundene Ausgabe,428,2022,2022,2023/07/02,2023/05/11,,,read,"Großartig. Mein Buch des Jahres.",,,1,1
-900003,Die Uhrmacherin von Lindau,Clara Wendt,"Wendt, Clara",,"=""""","=""""",3,3.65,Bodensee Bücher,Taschenbuch,0,2020,2020,2023/10/09,2023/09/30,,,read,,,,1,0
-900004,Nachtzug nach Tallinn,Mira Kask,"Kask, Mira",,"=""3000000004""","=""9783000000042""",4,3.80,Baltica,Taschenbuch,256,2019,2019,,2022/06/01,,,read,,,,1,0
-900005,Der leise Kartograf,Henrik Bauer,"Bauer, Henrik",,"=""3000000005""","=""9783000000059""",4,4.05,Atlas & Feder,Gebundene Ausgabe,1184,2018,2018,2024/01/20,2023/11/02,,,read,,,,2,1
-900006,Kleine Theorie des Regens,Ida Sommer,"Sommer, Ida",,"=""3000000006""","=""9783000000066""",5,4.31,Wolkenhaus,Broschiert,96,2023,2023,2024/02/11,2024/02/01,,,read,,,,1,0
-900007,Das Archiv der verlorenen Sommer,Paul Reiter,"Reiter, Paul",,"=""3000000007""","=""9783000000073""",3,3.55,Kieselverlag,Taschenbuch,384,2021,2021,2024/05/30,2024/04/12,,,read,"Zitat: ""Nichts bleibt, nur das Erinnern.""
+900001,Das Leuchten über Hallig Nord,Greta Holm,"Holm, Greta",,"=""3000000001""","=""9783000000011""",4,3.91,Nordlicht Verlag,Taschenbuch,312,2021,2021,2023/03/14,2023/01/02,"roman, küste","roman (#1), küste (#1)",read,,,,1,0
+900002,"Salz, Stein und ""Sterne""",Jonas Feld,"Feld, Jonas",,"=""3000000002""","=""9783000000028""",5,4.20,Kieselverlag,Gebundene Ausgabe,428,2022,2022,2023/07/02,2023/05/11,"roman, lieblingsbücher","roman (#2), lieblingsbücher (#1)",read,"Großartig. Mein Buch des Jahres.",,,1,1
+900003,Die Uhrmacherin von Lindau,Clara Wendt,"Wendt, Clara",,"=""""","=""""",3,3.65,Bodensee Bücher,Taschenbuch,0,2020,2020,2023/10/09,2022/09/30,historisch,historisch (#1),read,,,,1,0
+900004,Nachtzug nach Tallinn,Mira Kask,"Kask, Mira",,"=""3000000004""","=""9783000000042""",4,3.80,Baltica,Taschenbuch,256,2019,2019,,2022/06/01,"krimi, reise","krimi (#1), reise (#1)",read,,,,1,0
+900005,"Der leise Kartograf (Kartograf-Reihe, #1)",Henrik Bauer,"Bauer, Henrik",,"=""3000000005""","=""9783000000059""",4,4.05,Atlas & Feder,Gebundene Ausgabe,1184,2018,2018,2024/01/20,2021/11/02,"fantasy, lieblingsbücher","fantasy (#1), lieblingsbücher (#2)",read,,,,2,1
+900006,Kleine Theorie des Regens,Ida Sommer,"Sommer, Ida",,"=""3000000006""","=""9783000000066""",5,4.31,Wolkenhaus,Broschiert,96,2023,2023,2024/02/11,2024/02/01,lyrik,lyrik (#1),read,,,,1,0
+900007,Das Archiv der verlorenen Sommer,Paul Reiter,"Reiter, Paul",,"=""3000000007""","=""9783000000073""",3,3.55,Kieselverlag,Taschenbuch,384,2021,2021,2024/05/30,2024/04/12,roman,roman (#3),read,"Zitat: ""Nichts bleibt, nur das Erinnern.""
 Zweite Zeile der Rezension, mit Komma, und noch mehr.",,,1,0
-900008,Wolkenatlas für Anfänger,Lena Fuchs,"Fuchs, Lena",,"=""3000000008""","=""9783000000080""",0,3.70,Wolkenhaus,Taschenbuch,220,2022,2022,2024/08/08,2024/07/20,,,read,,,,1,0
-900009,Die Fähre um Mitternacht,Tom Aalto,"Aalto, Tom",,"=""3000000009""","=""9783000000097""",4,3.98,Baltica,Taschenbuch,341,2023,2023,2024/11/23,2024/11/01,,,read,,,,1,0
-900010,Ein Haus am Rand der Karte,Sophie Lind,"Lind, Sophie",,"=""3000000010""","=""9783000000103""",4,4.02,Atlas & Feder,Gebundene Ausgabe,298,2024,2024,2025/01/05,2024/12/24,,,read,,,,1,1
-900011,Kupfer & Kreide,Max Ortmann,"Ortmann, Max",,"=""""","=""""",2,3.10,Eigenverlag,E-Book,,2024,2024,2025/03/18,2025/03/01,,,read,,,,1,0
-900012,Die Bienen von Saarow,Anna Krüger,"Krüger, Anna",,"=""3000000012""","=""9783000000127""",5,4.40,Märkische Seiten,Taschenbuch,275,2024,2024,2025/04/22,2025/04/02,,,read,,,,1,0
-900013,Fernweh in Moll,Noah Weber,"Weber, Noah",,"=""3000000013""","=""9783000000134""",3,3.60,Kieselverlag,Taschenbuch,410,2023,2023,2025/06/30,2025/06/01,,,read,,,,1,0
+900008,Wolkenatlas für Anfänger,Lena Fuchs,"Fuchs, Lena",,"=""3000000008""","=""9783000000080""",0,3.70,Wolkenhaus,Taschenbuch,220,2022,2022,2024/08/08,2024/07/20,sachbuch,sachbuch (#1),read,,,,1,0
+900009,Die Fähre um Mitternacht,Tom Aalto,"Aalto, Tom",,"=""3000000009""","=""9783000000097""",4,3.98,Baltica,Taschenbuch,341,2023,2023,2024/11/23,2024/11/01,krimi,krimi (#2),read,,,,1,0
+900010,Ein Haus am Rand der Karte,Sophie Lind,"Lind, Sophie",,"=""3000000010""","=""9783000000103""",4,4.02,Atlas & Feder,Gebundene Ausgabe,298,2024,2024,2025/01/05,2024/12/24,roman,roman (#4),read,,,,1,1
+900011,Kupfer & Kreide,Max Ortmann,"Ortmann, Max",,"=""""","=""""",2,3.10,,E-Book,,,,2025/03/18,2025/03/01,sachbuch,sachbuch (#2),read,,,,1,0
+900012,Die Bienen von Saarow,Anna Krüger,"Krüger, Anna",,"=""3000000012""","=""9783000000127""",5,4.40,Märkische Seiten,Taschenbuch,275,2024,2024,2025/04/22,2025/04/02,"roman, lieblingsbücher","roman (#5), lieblingsbücher (#3)",read,,,,1,0
+900013,Fernweh in Moll,Noah Weber,"Weber, Noah",,"=""3000000013""","=""9783000000134""",3,3.60,Kieselverlag,Taschenbuch,410,2023,2023,2025/06/30,2023/06/01,roman,roman (#6),read,,,,1,0
 900014,Die Vermessung des Schweigens,Ruth Albers,"Albers, Ruth",,"=""3000000014""","=""9783000000141""",4,4.12,Nordlicht Verlag,Gebundene Ausgabe,502,2025,2025,2025/09/14,2025/08/20,,,read,,,,1,1
-900015,"Das ""Große"" Winterbuch",Erik Stahl,"Stahl, Erik",,"=""3000000015""","=""9783000000158""",4,3.88,Wolkenhaus,Gebundene Ausgabe,188,2022,2022,2022/12/27,2022/12/01,,,read,,,,1,1
+900015,Das große Winterbuch,Erik Stahl,"Stahl, Erik",,"=""3000000015""","=""9783000000158""",4,3.88,Wolkenhaus,Gebundene Ausgabe,188,2022,2022,2022/12/27,2022/12/01,,,read,,,,1,1
+900018,"Der Kartograf und das Meer (Kartograf-Reihe, #2)",Henrik Bauer,"Bauer, Henrik",,"=""3000000018""","=""9783000000189""",5,4.15,Atlas & Feder,Gebundene Ausgabe,640,2020,2020,2025/11/02,2025/01/10,fantasy,fantasy (#2),read,,,,1,1
+900019,Der leise Kartograf,Henrik Bauer,"Bauer, Henrik",,"=""3000000019""","=""9783000000196""",0,4.05,Atlas & Feder,Taschenbuch,1190,2019,2018,2021/08/15,2021/07/01,fantasy,fantasy (#3),read,,,,1,0
+900020,Die Wellen von Usedom,Greta Holm,"Holm, Greta",,"=""3000000020""","=""9783000000202""",3,3.70,Nordlicht Verlag,Taschenbuch,290,2024,2024,2026/01/18,2025/12/20,"roman, küste","roman (#7), küste (#2)",read,,,,1,0
+900021,Ein Faltblatt über Möwen,Lena Fuchs,"Fuchs, Lena",,"=""3000000021""","=""9783000000219""",0,3.20,Wolkenhaus,Broschiert,12,2025,2025,2026/02/09,2026/02/08,sachbuch,sachbuch (#3),read,,,,1,0
+900022,Krieg der Uhren,Konstantin Vogel,"Vogel, Konstantin",Ida Sommer,"=""3000000022""","=""9783000000226""",4,3.95,Kieselverlag,Taschenbuch,720,2019,1938,2026/03/27,2020/05/05,"klassiker, historisch","klassiker (#1), historisch (#2)",read,,,,1,0
+900023,Der Sturm von 1872,Ruth Albers,"Albers, Ruth",,"=""3000000023""","=""9783000000233""",5,4.25,Nordlicht Verlag,Gebundene Ausgabe,455,2021,1962,2026/05/16,2026/04/30,historisch,historisch (#3),read,,,,1,1
+900024,Mittsommer in Turku,Tom Aalto,"Aalto, Tom",,"=""3000000024""","=""9783000000240""",4,3.85,Baltica,Taschenbuch,330,2025,2025,2026/08/03,2026/07/15,krimi,krimi (#3),read,,,,1,0
 900016,Der Turm der Stunden,Vera Lang,"Lang, Vera",,"=""3000000016""","=""9783000000165""",0,4.01,Atlas & Feder,Taschenbuch,600,2025,2025,,2025/09/20,currently-reading,currently-reading (#1),currently-reading,,,,0,0
 900017,Morgenrot über Riga,Mira Kask,"Kask, Mira",,"=""3000000017""","=""9783000000172""",0,3.77,Baltica,Taschenbuch,350,2025,2025,,2025/09/25,to-read,to-read (#1),to-read,,,,0,0
+900025,Die Inseln hinter dem Nebel,Greta Holm,"Holm, Greta",,"=""3000000025""","=""9783000000257""",0,3.92,Nordlicht Verlag,Gebundene Ausgabe,512,2026,2026,,2026/06/02,to-read,to-read (#2),to-read,,,,0,0
+900026,Ein Jahr in Bergen,Sophie Lind,"Lind, Sophie",,"=""""","=""""",0,3.81,Atlas & Feder,Taschenbuch,,2026,2026,,2026/09/01,to-read,to-read (#3),to-read,,,,0,0

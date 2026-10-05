@@ -14,7 +14,7 @@ const block = id => {
 const ctx = vm.createContext({ Intl });
 vm.runInContext(block('konfig') + '\n' + block('kern') + `
   ;Object.assign(globalThis, { KONFIG, VERGLEICHE, parseCSV, zeilenZuDatensaetzen, normalisiereBuecher,
-    filterNachJahr, berechneKennzahlen, jahresAuswertung, formatStunden, formatTageStunden,
+    normalisiereAlle, filterNachJahr, berechneKennzahlen, jahresAuswertung, formatStunden, formatTageStunden,
     waehleVergleiche, rundeVerhaeltnis, zahl });`, ctx);
 const K = ctx;
 
@@ -44,50 +44,60 @@ console.log('\nBeispiel-CSV (beispiel/goodreads_beispiel.csv)');
 const csv = fs.readFileSync(path.join(__dirname, '..', 'beispiel', 'goodreads_beispiel.csv'), 'utf8');
 const zeilen = K.parseCSV(csv);
 const daten = K.zeilenZuDatensaetzen(zeilen);
+const alleEintraege = K.normalisiereAlle(daten, {});
 const buecher = K.normalisiereBuecher(daten, {});
 const opt = { mehrfach: false, minutenProSeite: 2 };
 const byTitle = t => buecher.find(b => b.titel === t);
+const byId = id => alleEintraege.find(b => b.id === 'gr:' + id);
 
-test('17 Datenzeilen trotz mehrzeiliger Rezension', () => assert.strictEqual(daten.length, 17));
+test('26 Datenzeilen trotz mehrzeiliger Rezension', () => assert.strictEqual(daten.length, 26));
 test('alle Zeilen haben 24 Spalten', () => assert.ok(zeilen.every(z => z.length === 24)));
-test('nur "read" zählt: 15 Bücher (currently-reading/to-read raus)', () => assert.strictEqual(buecher.length, 15));
-test('Titel mit Komma korrekt', () => assert.ok(byTitle('Salz, Stein und Sterne')));
-test('Titel mit "" korrekt', () => assert.ok(byTitle('Das "Große" Winterbuch')));
+test('nur "read" zählt: 22 Bücher', () => assert.strictEqual(buecher.length, 22));
+test('to-read (3) und currently-reading (1) bleiben getrennt erhalten', () => eq(
+  [alleEintraege.filter(b => b.regal === 'to-read').length, alleEintraege.filter(b => b.regal === 'currently-reading').length], [3, 1]));
+test('Titel mit Komma und "" korrekt', () => assert.ok(byTitle('Salz, Stein und "Sterne"')));
 test('mehrzeilige Rezension verschiebt keine Spalten', () => {
   const b = byTitle('Das Archiv der verlorenen Sommer');
-  eq([b.seiten, b.datum, b.leseanzahl], [384, '2024-05-30', 1]);
+  eq([b.seiten, b.datum, b.verlag, b.leseanzahl], [384, '2024-05-30', 'Kieselverlag', 1]);
 });
+test('ISBN ="3000000001" → 3000000001, ISBN13 bereinigt', () => eq([byId(900001).isbn, byId(900001).isbn13], ['3000000001', '9783000000011']));
+test('leere ISBN ="" → leer', () => assert.strictEqual(byId(900003).isbn, ''));
 test('Seiten leer → null, nicht 0', () => assert.strictEqual(byTitle('Kupfer & Kreide').seiten, null));
 test('Seiten 0 → null, nicht 0', () => assert.strictEqual(byTitle('Die Uhrmacherin von Lindau').seiten, null));
-test('Datum leer → kein Jahr', () => eq([byTitle('Nachtzug nach Tallinn').jahr, byTitle('Nachtzug nach Tallinn').datum], [null, null]));
-test('Datum YYYY/MM/DD → Jahr', () => assert.strictEqual(byTitle('Der leise Kartograf').jahr, 2024));
-test('Bewertung 0 = nicht bewertet', () => assert.strictEqual(byTitle('Wolkenatlas für Anfänger').bewertung, 0));
+test('Datum leer → kein Jahr', () => eq([byId(900004).jahr, byId(900004).datum], [null, null]));
+test('Date Read und Date Added (YYYY/MM/DD)', () => eq([byId(900005).datum, byId(900005).hinzugefuegt], ['2024-01-20', '2021-11-02']));
+test('Bewertung 0 = nicht bewertet; Average Rating als Zahl', () => eq([byId(900008).bewertung, byId(900008).durchschnitt], [0, 3.7]));
+test('Erscheinungsjahr: Original Publication Year vor Year Published', () => eq([byId(900022).erscheinungsjahr, byId(900022).erscheinungsjahrQuelle], [1938, 'original']));
+test('Erscheinungsjahr fehlt → null', () => assert.strictEqual(byId(900011).erscheinungsjahr, null));
+test('Verlag leer → leerer String', () => assert.strictEqual(byId(900011).verlag, ''));
+test('Additional Authors als Liste', () => eq(byId(900022).weitereAutoren, ['Ida Sommer']));
+test('Bookshelves ohne Standardregale', () => eq([byId(900002).regale, byId(900017).regale], [['roman', 'lieblingsbücher'], []]));
 
 const k = K.berechneKennzahlen(buecher, opt);
-test('Kennzahlen gesamt', () => eq(
+test('Kennzahlen gesamt (Python-csv als Gegenprobe)', () => eq(
   [k.anzahl, k.seiten, k.ohneSeiten, k.ohneDatum, k.minuten],
-  [15, 4894, 2, 1, 9788]));
-test('Ø Seiten nur über Bücher mit Seitenzahl (4.894 / 13)', () => assert.strictEqual(Math.round(k.durchschnittSeiten), 376));
-test('dickstes / dünnstes Buch', () => eq([k.dickstes.titel, k.duennstes.titel], ['Der leise Kartograf', 'Kleine Theorie des Regens']));
-test('Ø Bewertung ohne 0-Bewertungen (54 / 14)', () => assert.strictEqual(k.durchschnittBewertung.toFixed(2), '3.86'));
+  [22, 8531, 2, 1, 17062]));
+test('Ø Seiten nur über Bücher mit Seitenzahl (8.531 / 20)', () => assert.strictEqual(Math.round(k.durchschnittSeiten), 427));
+test('dickstes / dünnstes Buch', () => eq([k.dickstes.titel, k.duennstes.titel], ['Der leise Kartograf', 'Ein Faltblatt über Möwen']));
+test('Ø Bewertung ohne 0-Bewertungen (75 / 19)', () => eq([k.durchschnittBewertung.toFixed(2), k.bewertungen], ['3.95', 19]));
 
 const km = K.berechneKennzahlen(buecher, { ...opt, mehrfach: true });
-test('Schalter "mehrfach zählen": Read Count 2 zählt doppelt', () => eq([km.anzahl, km.seiten, km.titelAnzahl], [16, 6078, 15]));
+test('Schalter "mehrfach zählen": Read Count 2 zählt doppelt', () => eq([km.anzahl, km.seiten, km.titelAnzahl], [23, 9715, 22]));
 
-test('manuelle Seitenzahl wird übernommen', () => {
+test('nachgetragene Seitenzahl fließt ein', () => {
   const b2 = K.normalisiereBuecher(daten, { 'gr:900011': 333 });
   const kk = K.berechneKennzahlen(b2, opt);
-  eq([kk.seiten, kk.ohneSeiten, b2.find(b => b.titel === 'Kupfer & Kreide').seitenManuell], [5227, 1, true]);
+  eq([kk.seiten, kk.ohneSeiten, b2.find(b => b.titel === 'Kupfer & Kreide').seitenManuell], [8864, 1, true]);
 });
-test('manuelle Seitenzahl überschreibt keine CSV-Seitenzahl', () => {
-  const b2 = K.normalisiereBuecher(daten, { 'gr:900001': 999 });
-  assert.strictEqual(b2.find(b => b.id === 'gr:900001').seiten, 312);
+test('manuelle Korrektur hat Vorrang vor CSV-Wert (für Ausreißer)', () => {
+  const b2 = K.normalisiereBuecher(daten, { 'gr:900021': 120 });
+  eq([b2.find(b => b.id === 'gr:900021').seiten, b2.find(b => b.id === 'gr:900021').seitenCSV], [120, 12]);
 });
 
 const jahre = K.jahresAuswertung(buecher, opt);
-test('Jahresauswertung ohne Buch ohne Datum', () => eq(
+test('Jahresauswertung (ohne Buch ohne Datum)', () => eq(
   jahre.map(j => [j.jahr, j.buecher, j.seiten, j.ohneSeiten]),
-  [[2022, 1, 188, 0], [2023, 3, 740, 1], [2024, 5, 2225, 0], [2025, 5, 1485, 1]]));
+  [[2021, 1, 1190, 0], [2022, 1, 188, 0], [2023, 3, 740, 1], [2024, 5, 2225, 0], [2025, 6, 2125, 1], [2026, 5, 1807, 0]]));
 test('Summe Jahre + ohne Datum = gesamt', () => assert.strictEqual(jahre.reduce((a, j) => a + j.buecher, 0) + k.ohneDatum, k.anzahl));
 test('Jahresfilter 2024', () => assert.strictEqual(K.berechneKennzahlen(K.filterNachJahr(buecher, 2024), opt).seiten, 2225));
 test('Filter "ohne Lesedatum"', () => eq(K.filterNachJahr(buecher, 'ohne').map(b => b.titel), ['Nachtzug nach Tallinn']));
@@ -99,20 +109,20 @@ test('Lücken zwischen Jahren werden mit 0 gefüllt', () => {
 console.log('\nFormatierung');
 test('deutsche Tausenderpunkte', () => assert.strictEqual(K.zahl(1234567), '1.234.567'));
 test('vierstellig mit Punkt (1.234)', () => assert.strictEqual(K.zahl(1234), '1.234'));
-test('Stunden', () => assert.strictEqual(K.formatStunden(9788), '163 Std.'));
-test('Tage und Stunden', () => assert.strictEqual(K.formatTageStunden(9788), '6 Tage, 19 Std.'));
+test('Stunden', () => assert.strictEqual(K.formatStunden(17062), '284 Std.'));
+test('Tage und Stunden', () => assert.strictEqual(K.formatTageStunden(17062), '11 Tage, 20 Std.'));
 test('Beispiel 3 Tage, 4 Std.', () => assert.strictEqual(K.formatTageStunden(76 * 60), '3 Tage, 4 Std.'));
 test('genau 1 Tag', () => assert.strictEqual(K.formatTageStunden(24 * 60), '1 Tag'));
 test('unter 10 Std. mit Komma', () => assert.strictEqual(K.formatStunden(270), '4,5 Std.'));
 
 console.log('\nVergleiche');
 test('nur Ergebnisse zwischen 1 und 100, max. 4', () => {
-  const v = K.waehleVergleiche(163, 'Std.');
+  const v = K.waehleVergleiche(284, 'Std.');
   assert.ok(v.length >= 3 && v.length <= 4);
   assert.ok(v.every(x => x.verhaeltnis >= 1 && x.verhaeltnis <= 100));
 });
 test('fast gleich große Vergleiche werden nicht doppelt gezeigt', () => {
-  const namen = K.waehleVergleiche(163, 'Std.').map(v => v.wert);
+  const namen = K.waehleVergleiche(284, 'Std.').map(v => v.wert);
   assert.ok(!(namen.includes(9) && namen.includes(9.3)));
 });
 test('Wert < 1 bei allen → kleinster Vergleich als Anteil', () => {

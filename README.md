@@ -14,18 +14,23 @@ Wertet den CSV-Export deiner Goodreads-Bibliothek aus. Alles läuft lokal im Bro
 - Die CSV in das Feld ziehen oder über **Datei auswählen** laden.
 - Die CSV wird im `localStorage` des Browsers gespeichert und beim nächsten Öffnen automatisch geladen. **Daten zurücksetzen** löscht sie wieder.
 
-Zum Ausprobieren gibt es `beispiel/goodreads_beispiel.csv` mit 15 gelesenen, fiktiven Büchern (plus 2 auf anderen Regalen). Darin sind die Sonderfälle enthalten: ein Buch ohne Seitenzahl, eines mit 0 Seiten, eines ohne Lesedatum, Titel mit Komma und mit Anführungszeichen, eine mehrzeilige Rezension und ein zweimal gelesenes Buch.
+Zum Ausprobieren gibt es `beispiel/goodreads_beispiel.csv` mit 26 fiktiven Einträgen: 22 gelesene Bücher aus 2021–2026, 3 auf `to-read`, 1 auf `currently-reading`. Enthalten sind alle Sonderfälle: Bücher ohne Seitenzahl (leer und 0), ohne Lesedatum, ohne Bewertung, ohne Verlag und ohne Erscheinungsjahr, ein Titel mit Komma und Anführungszeichen, eine mehrzeilige Rezension, ein zweimal gelesenes Buch, eine Dublette („Der leise Kartograf“), ein Seiten-Ausreißer (12 Seiten), mehrere Bücher derselben Autoren und ein Klassiker von 1938.
+
+Die App ist in Tabs gegliedert: Übersicht, Jahre, Autoren & Bücher, Bewertungen, Spielerisches, Datenqualität. Der Zeitraum-Filter oben gilt für alle Tabs.
 
 ## Was gezählt wird
 
-- Nur Bücher auf dem Regal **read** (`Exclusive Shelf`).
-- **Ohne Lesedatum:** zählt in der Gesamtstatistik, aber nicht in der Jahresauswertung (wird angezeigt).
-- **Ohne Seitenzahl (leer oder 0):** zählt als gelesenes Buch, aber nicht zu den Seiten. Unter „Bücher ohne Seitenzahl“ kannst du die Zahl nachtragen. Das wird im Browser gespeichert, die CSV bleibt unverändert.
+- Nur Bücher auf dem Regal **read** (`Exclusive Shelf`). Das Regal `to-read` wird nur für den Zufallsgenerator genutzt.
+- **ISBN:** Goodreads exportiert sie als `="978…"`; die App bereinigt das.
+- **Ohne Lesedatum:** zählt in der Gesamtstatistik, aber nicht in Jahres-, Monats- und Tempo-Auswertungen (wird angezeigt).
+- **Ohne Seitenzahl (leer oder 0):** zählt als gelesenes Buch, aber nicht zu den Seiten. Unter „Bücher ohne Seitenzahl“ kannst du die Zahl nachtragen. Das wird im Browser gespeichert, die CSV bleibt unverändert, und der Wert fließt in alle Auswertungen ein.
 - **Mehrfach gelesen (`Read Count` > 1):** zählt einmal, außer der Schalter „Mehrfach gelesene Bücher mehrfach zählen“ ist aktiv. Goodreads exportiert nur das letzte Lesedatum, deshalb landen Wiederholungen im Jahr dieses Datums.
 - **Lesedauer:** Seiten × Minuten pro Seite (Standard 2, im Browser änderbar).
 - **Ø Bewertung:** nur Bücher, die du bewertet hast (0 Sterne = nicht bewertet).
 
 ## Anpassen
+
+Alle Einstellungen (Minuten pro Seite, Schalter, Zeitraum, aktiver Tab, nachgetragene Seitenzahlen) speichert die App im `localStorage`.
 
 Ganz oben in `index.html` stehen `KONFIG` (Standard-Minuten pro Seite, Bereich für Vergleiche) und `VERGLEICHE`. Dort kannst du eigene Vergleiche ergänzen:
 
