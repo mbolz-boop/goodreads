@@ -51,6 +51,8 @@ Die App ist eine einzelne Datei, die Daten bleiben im Browser des jeweiligen Ger
 
 Die Goodreads-CSV lässt sich nur über die Website exportieren, am Handy im Browser mit „Desktop-Version“.
 
+Drucken: Im Browser „Drucken“ wählen, es wird nur der geöffnete Tab ohne Bedienelemente gedruckt.
+
 ## Anpassen
 
 Alle Einstellungen (Jahresziel, Minuten pro Seite, Schalter, Zeitraum, aktiver Tab, nachgetragene Seitenzahlen) speichert die App im `localStorage`.
@@ -72,3 +74,9 @@ node tests/parser.test.js
 ```
 
 Die Tests laden Parser und Berechnung direkt aus `index.html` und prüfen die Randfälle an der Beispiel-CSV.
+
+## Online bereitstellen (z. B. Netlify)
+
+Die Seite braucht keinen Build. Bei Netlify: **Add new site → Import an existing project → GitHub**, das Repository wählen, als Branch `claude/zealous-turing-wzcod3` (bzw. den Branch, in den du ihn später übernimmst) angeben, Build-Befehl leer lassen und als Publish-Verzeichnis `.` verwenden (steht auch in `netlify.toml`). Alternativ einen Ordner nur mit `index.html` auf app.netlify.com/drop ziehen.
+
+Bereitgestellt wird nur die Seite. Deine CSV und alle Einstellungen bleiben im Browser des jeweiligen Geräts. Die Adresse ist öffentlich erreichbar (wer sie kennt, kann die leere App öffnen); `netlify.toml` und ein `noindex`-Hinweis halten sie aus Suchmaschinen heraus.

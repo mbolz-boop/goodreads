@@ -1,0 +1,12 @@
+# Netlify: statische Seite ohne Build-Schritt
+[build]
+  publish = "."
+
+# Die App ist privat gedacht: nicht in Suchmaschinen aufnehmen, keine Referrer senden
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    Referrer-Policy = "no-referrer"
+    X-Content-Type-Options = "nosniff"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"

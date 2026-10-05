@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232a78d6'/%3E%3Crect x='7' y='7' width='5' height='18' rx='1' fill='%23fff'/%3E%3Crect x='14' y='10' width='5' height='15' rx='1' fill='%23fff' opacity='.85'/%3E%3Crect x='21' y='8' width='4' height='17' rx='1' fill='%23fff' opacity='.7'/%3E%3C/svg%3E">
 <title>Lese-Tracker</title>
 
 <script id="konfig">
@@ -93,8 +95,9 @@ const VERGLEICHE = [
   --border: #e0ddd5;
   --text: #1b1b1a;
   --text-2: #52514e;
-  --text-3: #7a7974;
-  --accent: #2a78d6;
+  --text-3: #62615c;
+  --accent: #1d68c0;
+  --on-accent: #ffffff;
   --accent-soft: #dce9f9;
   --bar: #2a78d6;
   --bar-dim: #a9c8ee;
@@ -105,6 +108,7 @@ const VERGLEICHE = [
   --danger: #b3261e;
   --ok: #1d7a3e;
   --hm0: #ebe9e3; --hm1: #c5daf5; --hm2: #8db7ec; --hm3: #4a8ee0; --hm4: #1f63b8;
+  --hm-t1: #1b1b1a; --hm-t2: #1b1b1a; --hm-t3: #1b1b1a; --hm-t4: #ffffff; /* Zahlen in den Heatmap-Feldern, je Stufe mit ≥ 4,5:1 */
   --radius: 12px;
   --shadow: 0 1px 2px rgba(0,0,0,.05), 0 2px 8px rgba(0,0,0,.04);
 }
@@ -117,8 +121,9 @@ const VERGLEICHE = [
     --border: #33322f;
     --text: #f3f2ee;
     --text-2: #c3c2b7;
-    --text-3: #918f86;
+    --text-3: #a09e95;
     --accent: #5d9ef0;
+    --on-accent: #0b1b33;
     --accent-soft: #1f3350;
     --bar: #3987e5;
     --bar-dim: #24456e;
@@ -129,6 +134,7 @@ const VERGLEICHE = [
     --danger: #f2867f;
     --ok: #6fcf8f;
     --hm0: #262624; --hm1: #1d3555; --hm2: #25528a; --hm3: #3477cc; --hm4: #6aa6f0;
+    --hm-t1: #f3f2ee; --hm-t2: #f3f2ee; --hm-t3: #ffffff; --hm-t4: #0b0b0b;
     --shadow: none;
   }
 }
@@ -155,7 +161,7 @@ button:hover, .btn:hover { background: var(--surface-2); }
 button:focus-visible, input:focus-visible, select:focus-visible, .btn:focus-within, [tabindex]:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px;
 }
-button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 button.primary:hover { filter: brightness(1.08); background: var(--accent); }
 button.danger { color: var(--danger); }
 .card {
@@ -218,7 +224,7 @@ input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
 /* Diagramm */
 .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .seg button { border: 0; border-radius: 0; padding: 6px 12px; background: var(--surface); }
-.seg button[aria-pressed=true] { background: var(--accent); color: #fff; }
+.seg button[aria-pressed=true] { background: var(--accent); color: var(--on-accent); }
 .chart-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .chart-head h2 { margin: 0; }
 .viz { position: relative; width: 100%; }
@@ -227,6 +233,7 @@ input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
 .viz .bar.dim { fill: var(--bar-dim); }
 .viz .hit { fill: transparent; }
 .viz .hit.klick { cursor: pointer; }
+.viz .hit:focus-visible { stroke: var(--accent); stroke-width: 2; }
 .viz .hit:focus { outline: none; }
 .viz .hit:focus-visible + .bar, .viz .grp:hover .bar { filter: brightness(1.12); }
 .viz .grid { stroke: var(--grid); stroke-width: 1; }
@@ -287,8 +294,9 @@ label.inline { display: inline-flex; align-items: center; gap: 8px; font-size: .
 .viz .hm-zelle { stroke: var(--surface); stroke-width: 2; }
 .viz .hm-l0 { fill: var(--hm0); } .viz .hm-l1 { fill: var(--hm1); } .viz .hm-l2 { fill: var(--hm2); }
 .viz .hm-l3 { fill: var(--hm3); } .viz .hm-l4 { fill: var(--hm4); }
-.viz .hm-text { font-size: 11px; font-weight: 600; pointer-events: none; fill: var(--text); }
-.viz .hm-text.hell { fill: #fff; }
+.viz .hm-text { font-size: 11px; font-weight: 600; pointer-events: none; }
+.viz .hm-text.t1 { fill: var(--hm-t1); } .viz .hm-text.t2 { fill: var(--hm-t2); }
+.viz .hm-text.t3 { fill: var(--hm-t3); } .viz .hm-text.t4 { fill: var(--hm-t4); }
 .viz .hm-zeile.dim { opacity: .35; }
 .viz .hm-zeile[data-jahr] { cursor: pointer; }
 .viz .hm-zelle-grp:hover .hm-zelle, .viz .hm-zelle-grp:focus-visible .hm-zelle { stroke: var(--text); }
@@ -351,6 +359,18 @@ a.kpi.dq:hover { border-color: var(--border); }
 .dub-buch .meta { font-size: .82rem; color: var(--text-3); }
 .dub-aktionen { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 details summary { cursor: pointer; margin: 12px 0 8px; color: var(--text-2); }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
+/* Druckansicht: nur der aktive Tab, ohne Bedienelemente */
+@media print {
+  body { background: #fff; color: #000; }
+  .wrap { max-width: none; padding: 0; }
+  header.top .actions, .filter-card, .tabs, #hinweise, .chart-head label.inline, .seg, footer, #btn-png, #btn-zufall, .dub-aktionen, .ohne-liste form, #ohne-seiten-card, #dropzone { display: none !important; }
+  .card { box-shadow: none; break-inside: avoid; border-color: #bbb; margin-bottom: 12px; }
+  .tab-panel { display: none !important; }
+  .tab-panel.aktiv { display: block !important; }
+  a { color: inherit; text-decoration: none; }
+  .tooltip { display: none !important; }
+}
 footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top: 32px; }
 </style>
 </head>
@@ -369,7 +389,7 @@ footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top
     <div id="dropzone">
       <p class="big">Goodreads-CSV hierher ziehen</p>
       <p class="muted">oder</p>
-      <p><label class="btn primary" style="background:var(--accent);color:#fff;border-color:var(--accent)">Datei auswählen<input type="file" id="datei" accept=".csv,text/csv"></label></p>
+      <p><label class="btn primary" style="background:var(--accent);color:var(--on-accent);border-color:var(--accent)">Datei auswählen<input type="file" id="datei" accept=".csv,text/csv"></label></p>
       <p class="muted small">Export: Goodreads → My Books → Import and export → Export Library.<br>Die Datei verlässt deinen Computer nicht.</p>
       <p id="upload-fehler" class="fehler" role="alert"></p>
     </div>
@@ -377,7 +397,7 @@ footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top
 
   <!-- Auswertung -->
   <main id="app" class="hidden">
-    <section class="card">
+    <section class="card filter-card">
       <div class="toolbar">
         <label>Zeitraum
           <select id="sel-jahr"></select>
@@ -391,18 +411,18 @@ footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top
     </section>
 
     <nav class="tabs" role="tablist" aria-label="Bereiche">
-      <button type="button" role="tab" data-tab="uebersicht">Übersicht</button>
-      <button type="button" role="tab" data-tab="jahre">Jahre</button>
-      <button type="button" role="tab" data-tab="autoren">Autoren &amp; Bücher</button>
-      <button type="button" role="tab" data-tab="bewertungen">Bewertungen</button>
-      <button type="button" role="tab" data-tab="spiel">Spielerisches</button>
-      <button type="button" role="tab" data-tab="qualitaet">Datenqualität</button>
+      <button type="button" role="tab" id="tab-uebersicht" aria-controls="panel-uebersicht" data-tab="uebersicht">Übersicht</button>
+      <button type="button" role="tab" id="tab-jahre" aria-controls="panel-jahre" data-tab="jahre">Jahre</button>
+      <button type="button" role="tab" id="tab-autoren" aria-controls="panel-autoren" data-tab="autoren">Autoren &amp; Bücher</button>
+      <button type="button" role="tab" id="tab-bewertungen" aria-controls="panel-bewertungen" data-tab="bewertungen">Bewertungen</button>
+      <button type="button" role="tab" id="tab-spiel" aria-controls="panel-spiel" data-tab="spiel">Spielerisches</button>
+      <button type="button" role="tab" id="tab-qualitaet" aria-controls="panel-qualitaet" data-tab="qualitaet">Datenqualität</button>
     </nav>
 
     <div id="hinweise"></div>
 
     <!-- Tab: Übersicht -->
-    <div class="tab-panel" role="tabpanel" data-panel="uebersicht">
+    <div class="tab-panel" role="tabpanel" id="panel-uebersicht" aria-labelledby="tab-uebersicht" data-panel="uebersicht">
       <section class="card">
         <div class="chart-head">
           <h2 id="ziel-titel">Jahresziel</h2>
@@ -427,7 +447,7 @@ footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top
     </div>
 
     <!-- Tab: Jahre -->
-    <div class="tab-panel" role="tabpanel" data-panel="jahre">
+    <div class="tab-panel" role="tabpanel" id="panel-jahre" aria-labelledby="tab-jahre" data-panel="jahre">
       <section class="card">
         <div class="chart-head">
           <h2>Pro Jahr</h2>
@@ -443,7 +463,7 @@ footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top
       </section>
     </div>
 
-    <div class="tab-panel" role="tabpanel" data-panel="jahre" data-zusatz="1">
+    <div class="tab-panel" role="tabpanel" aria-labelledby="tab-jahre" data-panel="jahre" data-zusatz="1">
       <section class="card">
         <h2>Lesemonate</h2>
         <p class="erklaerung"><strong>Hinweis:</strong> Das Lesedatum ist der Tag, an dem du das Buch bei Goodreads als gelesen markiert hast – nicht zwingend der Tag, an dem du es beendet hast. Alle Jahre, das gewählte Jahr ist hervorgehoben.</p>
@@ -479,7 +499,7 @@ footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top
     </div>
 
     <!-- Tab: Autoren & Bücher (Stufe 4) -->
-    <div class="tab-panel" role="tabpanel" data-panel="autoren">
+    <div class="tab-panel" role="tabpanel" id="panel-autoren" aria-labelledby="tab-autoren" data-panel="autoren">
       <p class="zeitraum-zeile"></p>
       <section class="card">
         <div class="chart-head">
@@ -524,7 +544,7 @@ footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top
     </div>
 
     <!-- Tab: Bewertungen (Stufe 4) -->
-    <div class="tab-panel" role="tabpanel" data-panel="bewertungen">
+    <div class="tab-panel" role="tabpanel" id="panel-bewertungen" aria-labelledby="tab-bewertungen" data-panel="bewertungen">
       <p class="zeitraum-zeile"></p>
       <section class="card">
         <h2>Meine Bewertung vs. Goodreads-Durchschnitt</h2>
@@ -557,7 +577,7 @@ footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top
     </div>
 
     <!-- Tab: Spielerisches -->
-    <div class="tab-panel" role="tabpanel" data-panel="spiel">
+    <div class="tab-panel" role="tabpanel" id="panel-spiel" aria-labelledby="tab-spiel" data-panel="spiel">
       <section class="card">
         <h2>Meilensteine</h2>
         <p class="erklaerung">Über alle gelesenen Bücher, unabhängig vom Zeitraum-Filter. Das Datum ist das Lesedatum des Buchs, mit dem der Meilenstein erreicht wurde.</p>
@@ -605,7 +625,7 @@ footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top
     </div>
 
     <!-- Tab: Datenqualität -->
-    <div class="tab-panel" role="tabpanel" data-panel="qualitaet">
+    <div class="tab-panel" role="tabpanel" id="panel-qualitaet" aria-labelledby="tab-qualitaet" data-panel="qualitaet">
       <section class="card">
         <h2>Übersicht</h2>
         <p class="erklaerung">Gilt für alle gelesenen Bücher, unabhängig vom Zeitraum-Filter. Ausgeschlossene Dubletten sind nicht mitgezählt.</p>
@@ -1467,6 +1487,11 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
       zeigeUpload(true);
       return false;
     }
+    if (!datensaetze.length) {
+      $('upload-fehler').textContent = 'Die Datei enthält keine Bücher (nur eine Kopfzeile).';
+      zeigeUpload(true);
+      return false;
+    }
     $('upload-fehler').textContent = '';
     state.datensaetze = datensaetze;
     state.dateiname = dateiname || '';
@@ -1520,16 +1545,16 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     renderSteuerung(alle);
     renderTabs();
     renderHinweise(kAlle);
-    renderKennzahlen(k, jahr);
-    renderVergleiche(k);
-    renderJahresziel(alle, o);
-    renderJahre(alle, o);
-    renderLeseverhalten(alle, gefiltert, o);
-    renderBuecherAutoren(gefiltert, o);
-    renderBewertungen(gefiltert, o);
-    renderSpiel(alle, gefiltert, o);
-    renderDatenqualitaet(alle, o);
-    renderOhneSeiten(alle);
+    // Nur der sichtbare Tab wird gezeichnet (schneller bei großen Bibliotheken, und die Diagramme
+    // messen ihre Breite nur im sichtbaren Zustand richtig). Beim Tab-Wechsel wird neu gerendert.
+    switch (state.einst.tab) {
+      case 'uebersicht': renderKennzahlen(k, jahr); renderVergleiche(k); renderJahresziel(alle, o); break;
+      case 'jahre': renderJahre(alle, o); renderLeseverhalten(alle, gefiltert, o); break;
+      case 'autoren': renderBuecherAutoren(gefiltert, o); break;
+      case 'bewertungen': renderBewertungen(gefiltert, o); break;
+      case 'spiel': renderSpiel(alle, gefiltert, o); break;
+      case 'qualitaet': renderDatenqualitaet(alle, o); renderOhneSeiten(alle); break;
+    }
   }
 
   function zeitraumText(jahr) {
@@ -2147,7 +2172,7 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
         const x = labelW + zelle * mi;
         s += `<g class="hm-zelle-grp" data-tip="${esc(tip)}" tabindex="${n ? 0 : -1}" aria-label="${esc(tip)}">`;
         s += `<rect class="hm-zelle hm-l${l}" x="${x}" y="${y0}" width="${zelle}" height="${zelle}" rx="4"/>`;
-        if (n > 0 && zelle >= 22) s += `<text class="hm-text${l >= 3 ? ' hell' : ''}" x="${x + zelle / 2}" y="${y0 + zelle / 2 + 1}" text-anchor="middle" dominant-baseline="middle">${zahl(n)}</text>`;
+        if (n > 0 && zelle >= 22) s += `<text class="hm-text t${l}" x="${x + zelle / 2}" y="${y0 + zelle / 2 + 1}" text-anchor="middle" dominant-baseline="middle">${zahl(n)}</text>`;
         s += '</g>';
       });
       s += `<title>${r.jahr}: ${zahl(summe)} ${buecherWort(summe)}</title></g>`;
@@ -2307,7 +2332,14 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     v.addEventListener('click', e => { const g = e.target.closest('[data-jahr]'); if (g) waehleJahr(Number(g.dataset.jahr)); });
     v.addEventListener('keydown', e => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
-      const g = e.target.closest('[data-jahr]'); if (g) { e.preventDefault(); waehleJahr(Number(g.dataset.jahr)); }
+      const g = e.target.closest('[data-jahr]');
+      if (!g) return;
+      e.preventDefault();
+      const j = g.dataset.jahr;
+      waehleJahr(Number(j));
+      // Das Diagramm wurde neu gezeichnet: Fokus zurück auf denselben Balken
+      const neu = document.querySelector(`.viz .grp[data-jahr="${j}"] .hit`);
+      if (neu) neu.focus();
     });
     v.addEventListener('mouseover', e => { const g = e.target.closest('[data-tip]'); if (g) zeigeTip(v, g); });
     v.addEventListener('mouseleave', () => versteckeTip(v));
