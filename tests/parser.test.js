@@ -13,7 +13,8 @@ const block = id => {
 };
 const ctx = vm.createContext({ Intl });
 vm.runInContext(block('konfig') + '\n' + block('kern') + `
-  ;Object.assign(globalThis, { KONFIG, VERGLEICHE, parseCSV, zeilenZuDatensaetzen, normalisiereBuecher,
+  ;Object.assign(globalThis, { KONFIG, VERGLEICHE, GEBAEUDE, meilensteine, stapelHoehe, gebaeudeVergleich, zufallsKandidaten,
+    waehleZufall, rueckblick, rueckblickSVG, umbrechen, parseCSV, zeilenZuDatensaetzen, normalisiereBuecher,
     normalisiereAlle, filterNachJahr, berechneKennzahlen, jahresAuswertung, formatStunden, formatTageStunden,
     waehleVergleiche, rundeVerhaeltnis, zahl, jahreszielStatus, zeitBisZumLesen, monatsMatrix, wochentage,
     streaksUndPausen, tageZwischen, median, topGruppen, seitenKlassen, erscheinungsStatistik, bewertungsVergleich,
@@ -213,6 +214,79 @@ test('Bestenliste nach Jahr, neuestes zuerst', () => eq(K.bestenliste(buecher).m
 test('Bestenliste: 5 Sterne ohne Lesedatum landen am Ende', () => eq(
   K.bestenliste([{ bewertung: 5, jahr: null, datum: null, titel: 'a' }, { bewertung: 5, jahr: 2020, datum: '2020-01-01', titel: 'b' }]).map(g => g.jahr), [2020, 'ohne']));
 test('Vorzeichen-Format: +0,8 / −1,1 / 0', () => eq([K.zahlVorzeichen(0.8), K.zahlVorzeichen(-1.1), K.zahlVorzeichen(0)], ['+0,8', '−1,1', '0']));
+
+console.log('\nSpielerisches');
+const ms = K.meilensteine(buecher, opt);
+test('Meilensteine Bücher: 10 erreicht (23.11.2024), 25 offen mit 22 von 25', () => eq(
+  [ms.buecher[0].erreicht, ms.buecher[0].datum, ms.buecher[0].buch.titel, ms.buecher[1].erreicht, ms.buecher[1].aktuell, Math.round(ms.buecher[1].prozent)],
+  [true, '2024-11-23', 'Die Fähre um Mitternacht', false, 22, 88]));
+test('Meilensteine Seiten: 5.000 erreicht (30.06.2025), 10.000 offen', () => eq(
+  [ms.seiten[0].erreicht, ms.seiten[0].datum, ms.seiten[1].erreicht, ms.seiten[1].aktuell], [true, '2025-06-30', false, 8531]));
+test('offene Meilensteine haben kein Datum', () => assert.ok(ms.buecher.filter(b => !b.erreicht).every(b => b.datum === null)));
+test('Mehrfach-Schalter erhöht die Zahlen (23 Bücher)', () => assert.strictEqual(K.meilensteine(buecher, { ...opt, mehrfach: true }).gesamt.buecher, 23));
+test('Meilenstein erreicht nur durch Buch ohne Lesedatum → Datum unbekannt', () => {
+  const b = Array.from({ length: 10 }, (_, i) => ({ titel: 't' + i, datum: i < 9 ? `2024-01-${String(i + 1).padStart(2, '0')}` : null, seiten: 100, leseanzahl: 1 }));
+  const m = K.meilensteine(b, opt); eq([m.buecher[0].erreicht, m.buecher[0].datum], [true, null]);
+});
+
+test('Stapelhöhe: 22 Bücher × 2,5 cm = 0,55 m', () => assert.strictEqual(K.stapelHoehe(22, 2.5).toFixed(2), '0.55'));
+const gv = K.gebaeudeVergleich(0.55, 2.5);
+test('Gebäudevergleich: aufsteigend, Tisch 76 %, Brandenburger Tor 2 %', () => eq(
+  [gv[0].name, Math.round(gv[0].prozent), gv[0].erreicht, Math.round(gv.find(x => x.name === 'Brandenburger Tor').prozent)], ['Tisch (Standardhöhe)', 76, false, 2]));
+test('Bücher bis zum Brandenburger Tor: (26 − 0,55) / 0,025 = 1.018', () => assert.strictEqual(gv.find(x => x.name === 'Brandenburger Tor').fehlendBuecher, 1018));
+test('Stapel überragt Gebäude → Faktor', () => {
+  const hoch = K.gebaeudeVergleich(60, 2.5).filter(x => x.erreicht).map(x => x.name);
+  eq(hoch, ['Tisch (Standardhöhe)', 'Erwachsener Mensch', 'Doppeldeckerbus', 'Brandenburger Tor']);
+});
+test('Gebäudeliste: alle Einträge mit Name, Wert, Einheit m, Quelle', () => assert.ok(K.GEBAEUDE.every(g => g.name && g.wert > 0 && g.einheit === 'm' && g.quelle)));
+test('Gebäudeliste enthält die geforderten Werte', () => eq(
+  ['Brandenburger Tor', 'Kölner Dom', 'Eiffelturm', 'Berliner Fernsehturm', 'Burj Khalifa'].map(n => K.GEBAEUDE.find(g => g.name === n).wert), [26, 157, 330, 368, 828]));
+
+const alleE = K.normalisiereAlle(daten, {});
+const zk = K.zufallsKandidaten(alleE, 0);
+test('Zufall ohne Limit: 3 to-read-Bücher', () => eq([zk.kandidaten.length, zk.gesamt, zk.ohneSeitenAusgeschlossen], [3, 3, 0]));
+test('Zufall nur aus to-read (kein read, kein currently-reading)', () => assert.ok(zk.kandidaten.every(b => b.regal === 'to-read')));
+const zl = K.zufallsKandidaten(alleE, 400);
+test('Zufall mit Limit 400: nur „Morgenrot über Riga“, 1 ohne Seitenzahl ausgeschlossen', () => eq(
+  [zl.kandidaten.map(b => b.titel), zl.ohneSeitenAusgeschlossen], [['Morgenrot über Riga'], 1]));
+test('Zufall: Nachtragen einer Seitenzahl macht das Buch wählbar', () => {
+  const k2 = K.zufallsKandidaten(K.normalisiereAlle(daten, { 'gr:900026': 200 }), 400);
+  eq(k2.kandidaten.map(b => b.titel).sort(), ['Ein Jahr in Bergen', 'Morgenrot über Riga']);
+});
+test('Zufall: deterministisch mit Testzufall, nie dasselbe Buch zweimal hintereinander', () => {
+  const erstes = K.waehleZufall(zk.kandidaten, () => 0);
+  const zweites = K.waehleZufall(zk.kandidaten, () => 0, erstes.id);
+  eq([erstes.titel === zk.kandidaten[0].titel, zweites.id !== erstes.id], [true, true]);
+  assert.strictEqual(K.waehleZufall(zk.kandidaten, () => 0.999999).id, zk.kandidaten[2].id);
+});
+test('Zufall: leere Liste → null; einziges Buch bleibt wählbar', () => eq(
+  [K.waehleZufall([]), K.waehleZufall(zl.kandidaten, Math.random, zl.kandidaten[0].id).titel], [null, 'Morgenrot über Riga']));
+
+const rb = K.rueckblick(buecher, 2025, opt);
+test('Rückblick 2025: 6 Bücher, 2.125 Seiten, 71 Std.', () => eq([rb.anzahl, rb.seiten, K.formatStunden(rb.minuten)], [6, 2125, '71 Std.']));
+test('Rückblick: Top-Autor bei Gleichstand nach Seiten (Henrik Bauer)', () => eq([rb.topAutor.name, rb.topAutor.buecher], ['Henrik Bauer', 1]));
+test('Rückblick: bestbewertet = früheste 5 ★ (Bienen von Saarow), 1 weiteres', () => eq(
+  [rb.bestes.buch.titel, rb.bestes.weitere], ['Die Bienen von Saarow', 1]));
+test('Rückblick: dickstes Buch 640 Seiten', () => eq([rb.dickstes.seiten, rb.ohneSeiten], [640, 1]));
+test('Rückblick für Jahr ohne Bücher', () => eq([K.rueckblick(buecher, 2019, opt).anzahl, K.rueckblick(buecher, 2019, opt).bestes], [0, null]));
+
+const svg = K.rueckblickSVG(rb, { zahlText: '9', name: 'Harry-Potter-Marathon' });
+test('Rückblick-SVG: gültiges XML-Grundgerüst, 1080 × 1350, Kernzahlen enthalten', () => {
+  assert.ok(svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg"') && svg.endsWith('</svg>'));
+  assert.ok(svg.includes('viewBox="0 0 1080 1350"') && svg.includes('>2025<') && svg.includes('>2.125<') && svg.includes('>71<'));
+  assert.ok(svg.includes('Harry-Potter-Marathon'));
+});
+test('Rückblick-SVG: keine externen Referenzen', () => assert.ok(!/https?:\/\/(?!www\.w3\.org)|<image|href=/i.test(svg)));
+test('Rückblick-SVG: Sonderzeichen werden maskiert („Salz, Stein und "Sterne"“, &)', () => {
+  const r2 = { ...rb, dickstes: { titel: 'Kupfer & "Kreide" <1>', seiten: 99 } };
+  const x = K.rueckblickSVG(r2, null);
+  assert.ok(x.includes('Kupfer &amp; &quot;Kreide&quot; &lt;1&gt;') && !x.includes('<1>'));
+});
+test('Umbrechen: Zeilenlänge und Auslassungspunkte', () => {
+  eq(K.umbrechen('Der Kartograf und das Meer (Kartograf-Reihe, #2)', 30, 2), ['Der Kartograf und das Meer', '(Kartograf-Reihe, #2)']);
+  const l = K.umbrechen('a'.repeat(30) + ' ' + 'b'.repeat(30) + ' ' + 'c'.repeat(30), 20, 2);
+  eq([l.length, l[1].endsWith('…'), l.every(z => z.length <= 20)], [2, true, true]);
+});
 
 console.log('\nFormatierung');
 test('deutsche Tausenderpunkte', () => assert.strictEqual(K.zahl(1234567), '1.234.567'));

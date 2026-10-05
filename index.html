@@ -16,12 +16,29 @@ const KONFIG = {
   minutenProSeite: 2,
   // Jahresziel: Bücher pro Jahr (Startwert, im Browser änderbar)
   jahresziel: 25,
+  // Bücherstapel: Dicke eines Buchs in cm (Richtwert für Taschenbücher, im Browser änderbar)
+  buchDickeCm: 2.5,
   // Vergleiche gelten als "sinnvoll", wenn das Ergebnis in diesem Bereich liegt
   vergleichMin: 1,
   vergleichMax: 100,
   // So viele Vergleiche werden pro Kategorie höchstens angezeigt
   vergleicheMaxAnzahl: 4,
 };
+
+/* Gebäude und Höhen für den Bücherstapel. Jeder Eintrag: name, wert (in Metern), einheit 'm', quelle (Hinweis).
+   Neue Einträge einfach hinzufügen; die Reihenfolge ist egal. */
+const GEBAEUDE = [
+  { name: 'Tisch (Standardhöhe)', wert: 0.72, einheit: 'm', quelle: 'Büro-/Esstische meist 72–75 cm' },
+  { name: 'Erwachsener Mensch', wert: 1.7, einheit: 'm', quelle: 'Durchschnitt in Deutschland ca. 1,66 m (Frauen) bis 1,80 m (Männer)' },
+  { name: 'Doppeldeckerbus', wert: 4.4, einheit: 'm', quelle: 'Londoner Doppeldecker ca. 4,4 m, deutsche Modelle eher 4 m' },
+  { name: 'Brandenburger Tor', wert: 26, einheit: 'm', quelle: 'Höhe inkl. Quadriga ca. 26 m' },
+  { name: 'Freiheitsstatue (inkl. Sockel)', wert: 93, einheit: 'm', quelle: 'vom Boden bis zur Fackel ca. 93 m' },
+  { name: 'Elizabeth Tower („Big Ben“)', wert: 96, einheit: 'm', quelle: 'Turmhöhe ca. 96 m' },
+  { name: 'Kölner Dom', wert: 157, einheit: 'm', quelle: 'Südturm ca. 157 m' },
+  { name: 'Eiffelturm', wert: 330, einheit: 'm', quelle: 'inkl. Antenne ca. 330 m (ohne ca. 300 m)' },
+  { name: 'Berliner Fernsehturm', wert: 368, einheit: 'm', quelle: 'inkl. Antenne ca. 368 m' },
+  { name: 'Burj Khalifa', wert: 828, einheit: 'm', quelle: 'höchstes Gebäude der Welt, ca. 828 m' },
+];
 
 /* Vergleichswerte. Jeder Eintrag:
      name    – erscheint als "ca. 6 × <name>"
@@ -284,6 +301,29 @@ label.inline { display: inline-flex; align-items: center; gap: 8px; font-size: .
 .jahr-gruppe { margin-bottom: 14px; }
 .jahr-gruppe h3 { font-size: .95rem; margin: 0 0 6px; color: var(--text-2); }
 td.wenig { color: var(--warn-text); font-size: .82rem; white-space: normal; }
+/* Spielerisches */
+.badge-titel { font-size: .95rem; margin: 14px 0 8px; color: var(--text-2); }
+.badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.badge { border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--surface-2); color: var(--text-3); }
+.badge.erreicht { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
+.badge .zahl { font-size: 1.5rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.badge .art { font-size: .8rem; }
+.badge .datum { font-size: .8rem; margin-top: 6px; color: var(--text-2); }
+.badge .mini { height: 6px; background: var(--border); border-radius: 3px; margin-top: 8px; overflow: hidden; }
+.badge .mini i { display: block; height: 100%; background: var(--text-3); border-radius: 3px; }
+.badge .fortschritt-text { font-size: .75rem; margin-top: 4px; }
+.stapel-layout { display: grid; grid-template-columns: minmax(150px, 220px) 1fr; gap: 20px; align-items: start; }
+@media (max-width: 640px) { .stapel-layout { grid-template-columns: 1fr; } }
+.stapel-grafik svg { max-width: 220px; margin: 0 auto; }
+.stapel-ziel { margin: 12px 0; font-weight: 600; }
+.viz .spine { stroke: var(--surface); stroke-width: 1; }
+.viz .stapel-text-svg { fill: var(--text-3); font-size: 12px; }
+.zufall-karte { margin-top: 14px; background: var(--surface-2); border-radius: 12px; padding: 16px; }
+.zufall-karte .titel { font-size: 1.2rem; font-weight: 650; }
+.zufall-karte .meta { color: var(--text-2); margin-top: 2px; }
+.zufall-karte .dauer { margin-top: 8px; font-size: .92rem; color: var(--text-2); }
+.wrapped { max-width: 420px; margin: 0 auto; border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); }
+.wrapped svg { display: block; width: 100%; height: auto; }
 /* Listen */
 .zwei-spalten { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 16px; }
 .zwei-spalten h3 { font-size: .95rem; margin: 0 0 8px; color: var(--text-2); }
@@ -497,9 +537,52 @@ footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top
       </section>
     </div>
 
-    <!-- Tab: Spielerisches (Stufe 5) -->
+    <!-- Tab: Spielerisches -->
     <div class="tab-panel" role="tabpanel" data-panel="spiel">
-      <section class="card"><p class="muted">Meilensteine, Bücherstapel, Zufallsbuch und Jahresrückblick folgen in Stufe 5.</p></section>
+      <section class="card">
+        <h2>Meilensteine</h2>
+        <p class="erklaerung">Über alle gelesenen Bücher, unabhängig vom Zeitraum-Filter. Das Datum ist das Lesedatum des Buchs, mit dem der Meilenstein erreicht wurde.</p>
+        <p class="ohne-datum-hinweis" id="ms-hinweis"></p>
+        <h3 class="badge-titel">Bücher</h3>
+        <div class="badges" id="badges-buecher"></div>
+        <h3 class="badge-titel">Seiten</h3>
+        <div class="badges" id="badges-seiten"></div>
+      </section>
+
+      <section class="card">
+        <div class="chart-head">
+          <h2>Bücherstapel</h2>
+          <label class="inline">Dicke pro Buch <input type="number" id="inp-cm" min="0.1" max="20" step="0.1"> cm</label>
+        </div>
+        <p class="erklaerung">Alle gelesenen Bücher des gewählten Zeitraums aufeinandergestapelt. Die Dicke ist ein Richtwert für Taschenbücher, Gebundene sind oft dicker.</p>
+        <div class="stapel-layout">
+          <div class="viz stapel-grafik" id="stapel"></div>
+          <div class="stapel-text">
+            <div class="kpis" id="stapel-kpis"></div>
+            <p class="stapel-ziel" id="stapel-ziel"></p>
+            <div class="viz" id="gebaeude"></div>
+          </div>
+        </div>
+        <p class="richtwert">Richtwerte, je nach Ausgabe oder Schnitt unterschiedlich. Alle Angaben gerundet („ca.“).</p>
+      </section>
+
+      <section class="card">
+        <h2>Zufälliges Buch aus „to-read“</h2>
+        <div class="toolbar">
+          <label>Höchstens <input type="number" id="inp-zufall-max" min="1" max="20000" step="10" placeholder="egal"> Seiten</label>
+          <button type="button" class="primary" id="btn-zufall">Buch ziehen</button>
+        </div>
+        <div id="zufall" aria-live="polite"></div>
+      </section>
+
+      <section class="card">
+        <div class="chart-head">
+          <h2 id="rueckblick-titel">Rückblick</h2>
+          <button type="button" id="btn-png">Als Bild speichern (PNG)</button>
+        </div>
+        <p class="erklaerung">Der Rückblick zeigt immer das Vorjahr, unabhängig vom Zeitraum-Filter. Das Bild wird lokal im Browser erzeugt.</p>
+        <div class="wrapped" id="wrapped"></div>
+      </section>
     </div>
 
     <!-- Tab: Datenqualität -->
@@ -979,6 +1062,165 @@ function bestenliste(buecher) {
     }));
 }
 
+/* ---------- Spielerisches ---------- */
+
+const MEILENSTEINE_BUECHER = [10, 25, 50, 100, 250, 500, 1000];
+const MEILENSTEINE_SEITEN = [5000, 10000, 25000, 50000, 100000];
+
+/** Meilensteine über alle gelesenen Bücher. "erreicht" richtet sich nach der Gesamtzahl;
+    das Datum ergibt sich aus der Reihenfolge der Lesedaten (Bücher ohne Lesedatum haben keins). */
+function meilensteine(buecher, opt) {
+  const mitDatum = buecher.filter(b => b.datum)
+    .sort((a, b) => a.datum.localeCompare(b.datum) || a.titel.localeCompare(b.titel, 'de'));
+  const gesamt = { buecher: 0, seiten: 0 };
+  for (const b of buecher) { const w = gewicht(b, opt); gesamt.buecher += w; gesamt.seiten += (b.seiten ?? 0) * w; }
+  const bauen = (schwellen, wert, wertVon) => schwellen.map(schwelle => {
+    let cum = 0, datum = null, buch = null;
+    for (const b of mitDatum) {
+      cum += wertVon(b);
+      if (cum >= schwelle) { datum = b.datum; buch = b; break; }
+    }
+    const erreicht = wert >= schwelle;
+    return { schwelle, erreicht, datum: erreicht ? datum : null, buch: erreicht ? buch : null,
+             aktuell: wert, prozent: Math.min(100, wert / schwelle * 100) };
+  });
+  return {
+    gesamt,
+    buecher: bauen(MEILENSTEINE_BUECHER, gesamt.buecher, b => gewicht(b, opt)),
+    seiten: bauen(MEILENSTEINE_SEITEN, gesamt.seiten, b => (b.seiten ?? 0) * gewicht(b, opt)),
+  };
+}
+
+/** Höhe des Bücherstapels in Metern */
+function stapelHoehe(anzahl, cmProBuch) { return anzahl * cmProBuch / 100; }
+
+/** Vergleicht eine Höhe (m) mit der Gebäudeliste, aufsteigend nach Höhe */
+function gebaeudeVergleich(hoeheM, cmProBuch, liste = GEBAEUDE) {
+  return liste.filter(g => g.einheit === 'm' && g.wert > 0)
+    .slice().sort((a, b) => a.wert - b.wert)
+    .map(g => {
+      const erreicht = hoeheM >= g.wert;
+      return {
+        ...g, erreicht,
+        prozent: Math.min(100, hoeheM / g.wert * 100),
+        faktor: hoeheM / g.wert,
+        fehlendBuecher: erreicht ? 0 : Math.ceil((g.wert - hoeheM) / (cmProBuch / 100)),
+      };
+    });
+}
+
+/** Zufallskandidaten aus dem Regal to-read; mit Seitenlimit fallen Bücher ohne Seitenzahl heraus */
+function zufallsKandidaten(eintraege, maxSeiten) {
+  const toRead = eintraege.filter(b => b.regal === 'to-read');
+  const limit = maxSeiten > 0;
+  const kandidaten = limit ? toRead.filter(b => b.seiten != null && b.seiten <= maxSeiten) : toRead;
+  return {
+    kandidaten,
+    gesamt: toRead.length,
+    ohneSeitenAusgeschlossen: limit ? toRead.filter(b => b.seiten == null).length : 0,
+  };
+}
+
+/** Zieht ein Buch; vermeidet (wenn möglich) das zuletzt gezogene. random: () => [0,1) */
+function waehleZufall(kandidaten, random = Math.random, ausserId = null) {
+  const pool = kandidaten.length > 1 ? kandidaten.filter(b => b.id !== ausserId) : kandidaten;
+  return pool.length ? pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))] : null;
+}
+
+/** Zahlen des Rückblicks für ein Jahr */
+function rueckblick(buecher, jahr, opt) {
+  const g = filterNachJahr(buecher, jahr);
+  const k = berechneKennzahlen(g, opt);
+  // Top-Autor: meiste Bücher, bei Gleichstand die meisten Seiten, dann alphabetisch
+  const autoren = topGruppen(g, b => b.autor ? [b.autor] : [], opt, 'buecher', Infinity).liste
+    .sort((a, b) => b.buecher - a.buecher || b.seiten - a.seiten || a.name.localeCompare(b.name, 'de'))[0] || null;
+  // bestbewertet: höchste eigene Bewertung, bei Gleichstand das früheste Lesedatum
+  const bewertet = g.filter(b => b.bewertung > 0)
+    .sort((a, b) => b.bewertung - a.bewertung || a.datum.localeCompare(b.datum) || a.titel.localeCompare(b.titel, 'de'));
+  const bestes = bewertet[0] || null;
+  return {
+    jahr, anzahl: k.anzahl, seiten: k.seiten, minuten: k.minuten, ohneSeiten: k.ohneSeiten,
+    topAutor: autoren,
+    bestes: bestes && { buch: bestes, weitere: bewertet.filter(b => b.bewertung === bestes.bewertung).length - 1 },
+    dickstes: k.dickstes,
+  };
+}
+
+function escXml(t) {
+  return String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/** Bricht Text in höchstens maxZeilen Zeilen mit maxZeichen Zeichen um (mit Auslassungspunkten) */
+function umbrechen(text, maxZeichen, maxZeilen = 2) {
+  const woerter = String(text).split(/\s+/).filter(Boolean);
+  const zeilen = [];
+  let zeile = '';
+  for (let w of woerter) {
+    while (w.length > maxZeichen) { // sehr lange Wörter hart trennen
+      if (zeile) { zeilen.push(zeile); zeile = ''; }
+      zeilen.push(w.slice(0, maxZeichen)); w = w.slice(maxZeichen);
+    }
+    if (!zeile) zeile = w;
+    else if ((zeile + ' ' + w).length <= maxZeichen) zeile += ' ' + w;
+    else { zeilen.push(zeile); zeile = w; }
+  }
+  if (zeile) zeilen.push(zeile);
+  if (zeilen.length > maxZeilen) {
+    const kept = zeilen.slice(0, maxZeilen);
+    const l = kept[maxZeilen - 1];
+    kept[maxZeilen - 1] = (l.length >= maxZeichen ? l.slice(0, maxZeichen - 1) : l) + '…';
+    return kept;
+  }
+  return zeilen;
+}
+
+/** Rückblick als eigenständiges SVG (1080 × 1350), wird im Browser angezeigt und als PNG gespeichert.
+    vergleich: {zahlText, name} oder null */
+function rueckblickSVG(r, vergleich) {
+  const W = 1080, H = 1350;
+  const f = 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family='${f}'>`;
+  s += `<rect width="${W}" height="${H}" fill="#1a1a19"/><rect width="${W}" height="14" fill="#3987e5"/>`;
+  s += `<text x="72" y="130" font-size="34" fill="#918f86" letter-spacing="3">MEIN LESEJAHR</text>`;
+  s += `<text x="72" y="250" font-size="132" font-weight="700" fill="#f3f2ee">${escXml(r.jahr)}</text>`;
+  const kacheln = [
+    [zahl(r.anzahl), r.anzahl === 1 ? 'Buch' : 'Bücher'],
+    [zahl(r.seiten), 'Seiten'],
+    [zahl(Math.round(r.minuten / 60)), 'Stunden'],
+  ];
+  kacheln.forEach(([zahlText, label], i) => {
+    const x = 72 + i * 322, w = 296;
+    const gross = zahlText.length > 6 ? 62 : zahlText.length > 4 ? 76 : 92;
+    s += `<rect x="${x}" y="320" width="${w}" height="190" rx="24" fill="#242422"/>`;
+    s += `<text x="${x + w / 2}" y="430" font-size="${gross}" font-weight="700" fill="#6aa6f0" text-anchor="middle">${escXml(zahlText)}</text>`;
+    s += `<text x="${x + w / 2}" y="480" font-size="30" fill="#c3c2b7" text-anchor="middle">${label}</text>`;
+  });
+  s += `<text x="72" y="552" font-size="26" fill="#918f86">${escXml(formatTageStunden(r.minuten))} Lesezeit</text>`;
+  const zeilen = [];
+  if (r.topAutor) zeilen.push(['TOP-AUTOR', `${r.topAutor.name} (${zahl(r.topAutor.buecher)} ${r.topAutor.buecher === 1 ? 'Buch' : 'Bücher'})`]);
+  if (r.bestes) zeilen.push(['BESTBEWERTET', `${r.bestes.buch.titel} (${r.bestes.buch.bewertung} ★)${r.bestes.weitere ? ` und ${r.bestes.weitere} ${r.bestes.weitere === 1 ? 'weiteres' : 'weitere'}` : ''}`]);
+  if (r.dickstes) zeilen.push(['DICKSTES BUCH', `${r.dickstes.titel} (${zahl(r.dickstes.seiten)} Seiten)`]);
+  let y = 650;
+  for (const [label, wert] of zeilen) {
+    s += `<text x="72" y="${y}" font-size="24" fill="#918f86" letter-spacing="2">${label}</text>`;
+    const teile = umbrechen(wert, 40, 2);
+    teile.forEach((t, i) => {
+      s += `<text x="72" y="${y + 52 + i * 48}" font-size="42" font-weight="600" fill="#f3f2ee">${escXml(t)}</text>`;
+    });
+    y += 52 + (teile.length - 1) * 48 + 78; // Abstand richtet sich nach der Zeilenzahl
+  }
+  if (vergleich) {
+    s += `<rect x="72" y="1130" width="936" height="130" rx="24" fill="#1f3350"/>`;
+    s += `<text x="108" y="1182" font-size="26" fill="#c3c2b7">Das entspricht deiner Lesedauer von</text>`;
+    umbrechen(`ca. ${vergleich.zahlText} × ${vergleich.name}`, 46, 1).forEach(t => {
+      s += `<text x="108" y="1232" font-size="38" font-weight="700" fill="#f3f2ee">${escXml(t)}</text>`;
+    });
+  }
+  s += `<text x="72" y="1308" font-size="22" fill="#918f86">Richtwerte, je nach Ausgabe oder Schnitt unterschiedlich · Lese-Tracker, lokal erstellt</text>`;
+  s += '</svg>';
+  return s;
+}
+
 /* ---------- Formatierung (deutsch) ---------- */
 const NF0 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
 const NF1 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 });
@@ -1082,12 +1324,14 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     speicherWarnung: false,
     overrides: ladeJSON(SPEICHER.seiten, {}),
     einst: Object.assign(
-      { jahr: 'alle', mehrfach: false, minutenProSeite: KONFIG.minutenProSeite, diagramm: 'buecher', autorenModus: 'buecher', tab: 'uebersicht', jahresziel: KONFIG.jahresziel },
+      { jahr: 'alle', mehrfach: false, minutenProSeite: KONFIG.minutenProSeite, diagramm: 'buecher', autorenModus: 'buecher', tab: 'uebersicht', jahresziel: KONFIG.jahresziel, stapelCm: KONFIG.buchDickeCm, zufallMax: '' },
       ladeJSON(SPEICHER.einstellungen, {})
     ),
   };
   if (!(state.einst.minutenProSeite > 0)) state.einst.minutenProSeite = KONFIG.minutenProSeite;
   if (!(state.einst.jahresziel >= 1)) state.einst.jahresziel = KONFIG.jahresziel;
+  if (!(state.einst.stapelCm > 0)) state.einst.stapelCm = KONFIG.buchDickeCm;
+  state.zufallId = null;
 
   function speichereEinstellungen() { ls.set(SPEICHER.einstellungen, JSON.stringify(state.einst)); }
   function opt() { return { mehrfach: state.einst.mehrfach, minutenProSeite: state.einst.minutenProSeite }; }
@@ -1160,6 +1404,7 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     renderLeseverhalten(alle, gefiltert, o);
     renderBuecherAutoren(gefiltert, o);
     renderBewertungen(gefiltert, o);
+    renderSpiel(alle, gefiltert, o);
     renderOhneSeiten(alle);
   }
 
@@ -1181,8 +1426,25 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     $('chk-mehrfach').checked = state.einst.mehrfach;
     if (document.activeElement !== $('inp-minuten')) $('inp-minuten').value = String(state.einst.minutenProSeite);
     if (document.activeElement !== $('inp-ziel')) $('inp-ziel').value = String(state.einst.jahresziel);
+    if (document.activeElement !== $('inp-cm')) $('inp-cm').value = String(state.einst.stapelCm);
+    if (document.activeElement !== $('inp-zufall-max')) $('inp-zufall-max').value = state.einst.zufallMax === '' ? '' : String(state.einst.zufallMax);
     $('dateiinfo').textContent = state.dateiname ? 'Datei: ' + state.dateiname : '';
-    document.querySelectorAll('#seg-diagramm button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.modus === state.einst.diagramm)));
+    $('inp-cm').addEventListener('input', e => {
+    const v = parseFloat(String(e.target.value).replace(',', '.'));
+    if (v > 0 && v <= 20) { state.einst.stapelCm = v; speichereEinstellungen(); render(); }
+  });
+  $('inp-zufall-max').addEventListener('input', e => {
+    const v = parseInt(e.target.value, 10);
+    state.einst.zufallMax = v > 0 ? v : '';
+    state.zufallId = null; speichereEinstellungen(); renderZufall();
+  });
+  $('btn-zufall').addEventListener('click', () => {
+    const k = zufallsKandidaten(state.alle, Number(state.einst.zufallMax));
+    const b = waehleZufall(k.kandidaten, Math.random, state.zufallId);
+    state.zufallId = b ? b.id : null; renderZufall();
+  });
+  $('btn-png').addEventListener('click', speicherePNG);
+  document.querySelectorAll('#seg-diagramm button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.modus === state.einst.diagramm)));
     document.querySelectorAll('#seg-autoren button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.aut === state.einst.autorenModus)));
     document.querySelectorAll('.zeitraum-zeile').forEach(p => { p.innerHTML = 'Auswertung für: <strong>' + esc(zeitraumText(state.einst.jahr)) + '</strong> (Filter oben)'; });
   }
@@ -1515,6 +1777,118 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
       <div class="jahr-gruppe"><h3>${gr.jahr === 'ohne' ? 'Ohne Lesedatum' : gr.jahr}</h3>
         <ul class="buchliste">${gr.buecher.map(b => `<li><span class="titel">${esc(b.titel)}</span><span class="meta">${esc(b.autor)}${b.datum ? ' · gelesen ' + datumDE(b.datum) : ''}</span></li>`).join('')}</ul></div>`).join('')
       : '<p class="muted">Keine 5-Sterne-Bücher im gewählten Zeitraum.</p>';
+  }
+
+  /* ---------- Spielerisches ---------- */
+  const fmtHoehe = m => m < 1 ? `${zahl(Math.round(m * 100))} cm` : m < 10 ? `${zahl1(Math.round(m * 10) / 10)} m` : `${zahl(Math.round(m))} m`;
+  function rundeAnzahl(n) { // Bücheranzahl: bis 100 genau, darüber auf 2 signifikante Stellen
+    if (n <= 100) return zahl(n);
+    const st = Math.pow(10, Math.floor(Math.log10(n)) - 1);
+    return zahl(Math.round(n / st) * st);
+  }
+  let rueckblickDaten = null;
+
+  function renderSpiel(alle, gefiltert, o) {
+    renderMeilensteine(alle, o);
+    renderStapel(gefiltert, o);
+    renderZufall();
+    renderRueckblick(alle, o);
+  }
+
+  function renderMeilensteine(alle, o) {
+    const m = meilensteine(alle, o);
+    $('ms-hinweis').textContent = ohneDatumText(alle);
+    const badge = (b, einheit) => b.erreicht
+      ? `<div class="badge erreicht"><div class="zahl">✓ ${zahl(b.schwelle)}</div><div class="art">${einheit}</div><div class="datum">${b.datum ? 'erreicht am ' + datumDE(b.datum) : 'Datum unbekannt'}</div></div>`
+      : `<div class="badge" aria-label="${zahl(b.schwelle)} ${einheit}: noch offen, ${zahl(b.aktuell)} von ${zahl(b.schwelle)}"><div class="zahl">${zahl(b.schwelle)}</div><div class="art">${einheit}</div><div class="mini"><i style="width:${b.prozent}%"></i></div><div class="fortschritt-text">${zahl(b.aktuell)} von ${zahl(b.schwelle)}</div></div>`;
+    $('badges-buecher').innerHTML = m.buecher.map(b => badge(b, 'Bücher')).join('');
+    $('badges-seiten').innerHTML = m.seiten.map(b => badge(b, 'Seiten')).join('');
+  }
+
+  function stapelSVG(el, n) {
+    if (!n) { el.innerHTML = '<p class="muted">Noch keine Bücher.</p>'; return; }
+    const zeichnen = Math.min(n, 40), zh = 10, w = 200, H = zeichnen * zh + 24;
+    const farben = ['--hm3', '--bar', '--hm4', '--hm2', '--bar-dim'];
+    let s = `<svg viewBox="0 0 ${w} ${H}" width="${w}" height="${H}" role="img" aria-label="Bücherstapel aus ${zahl(n)} Büchern">`;
+    for (let i = 0; i < zeichnen; i++) {
+      const bw = 130 + (i * 37) % 55, x = (w - bw) / 2 + ((i * 53) % 13) - 6;
+      s += `<rect class="spine" x="${x}" y="${H - 24 - (i + 1) * zh}" width="${bw}" height="${zh}" rx="2" style="fill:var(${farben[(i * 3) % farben.length]})"/>`;
+    }
+    s += `<line class="grid" x1="10" x2="${w - 10}" y1="${H - 23}" y2="${H - 23}"/>`;
+    if (n > zeichnen) s += `<text class="stapel-text-svg" x="${w / 2}" y="${H - 6}" text-anchor="middle">Darstellung auf ${zeichnen} Bücher gekürzt</text>`;
+    el.innerHTML = s + '</svg>';
+  }
+
+  function renderStapel(g, o) {
+    const n = berechneKennzahlen(g, o).anzahl;
+    const cm = state.einst.stapelCm;
+    const h = stapelHoehe(n, cm);
+    stapelSVG($('stapel'), n);
+    $('stapel-kpis').innerHTML = kpi('Höhe deines Stapels', n ? fmtHoehe(h) : '–', n ? `${zahl(n)} ${buecherWort(n)} × ${zahl1(cm)} cm · ${esc(zeitraumText(state.einst.jahr))}` : 'keine Bücher im gewählten Zeitraum', 'hero');
+    if (!n) { $('stapel-ziel').textContent = ''; $('gebaeude').innerHTML = ''; return; }
+    const liste = gebaeudeVergleich(h, cm);
+    const naechstes = liste.find(x => !x.erreicht);
+    $('stapel-ziel').textContent = naechstes
+      ? `Bis zur Höhe von „${naechstes.name}“ (ca. ${fmtHoehe(naechstes.wert)}) fehlen noch ca. ${rundeAnzahl(naechstes.fehlendBuecher)} ${buecherWort(naechstes.fehlendBuecher)}.`
+      : 'Dein Stapel überragt alle Gebäude der Liste.';
+    hBalkenSVG($('gebaeude'), liste.map(x => ({
+      label: `${x.name} (ca. ${fmtHoehe(x.wert)})`,
+      wert: x.prozent,
+      valText: x.erreicht ? `überragt, ca. ${rundeVerhaeltnis(x.faktor).text} ×` : x.prozent < 1 ? 'unter 1 %' : `ca. ${zahl(Math.round(x.prozent))} %`,
+      tip: x.erreicht ? `Dein Stapel ist ca. ${rundeVerhaeltnis(x.faktor).text} × so hoch wie ${x.name} (${x.quelle})` : `Dein Stapel erreicht ca. ${x.prozent < 1 ? 'unter 1' : zahl(Math.round(x.prozent))} % der Höhe von ${x.name} (${x.quelle})`,
+    })), { aria: 'Stapelhöhe im Vergleich zu Gebäuden' });
+  }
+
+  function renderZufall() {
+    const k = zufallsKandidaten(state.alle, Number(state.einst.zufallMax));
+    const el = $('zufall');
+    $('btn-zufall').disabled = !k.kandidaten.length;
+    if (!k.gesamt) { el.innerHTML = '<p class="muted">Im Regal <em>to-read</em> liegen keine Bücher.</p>'; return; }
+    if (!k.kandidaten.length) { el.innerHTML = '<p class="muted">Kein Buch passt zum Seitenlimit.' + (k.ohneSeitenAusgeschlossen ? ` ${zahl(k.ohneSeitenAusgeschlossen)} ${buecherWort(k.ohneSeitenAusgeschlossen)} ohne Seitenzahl ${k.ohneSeitenAusgeschlossen === 1 ? 'wird' : 'werden'} bei einem Limit nicht berücksichtigt.` : '') + '</p>'; return; }
+    const b = k.kandidaten.find(x => x.id === state.zufallId);
+    const info = `${zahl(k.kandidaten.length)} von ${zahl(k.gesamt)} Büchern in „to-read“ kommen infrage${k.ohneSeitenAusgeschlossen ? `; ${zahl(k.ohneSeitenAusgeschlossen)} ohne Seitenzahl ${k.ohneSeitenAusgeschlossen === 1 ? 'wird' : 'werden'} bei einem Limit nicht berücksichtigt` : ''}.`;
+    if (!b) { el.innerHTML = `<p class="muted" style="margin-top:12px">${info}</p>`; return; }
+    const minuten = b.seiten != null ? b.seiten * state.einst.minutenProSeite : null;
+    el.innerHTML = `<div class="zufall-karte"><div class="titel">${esc(b.titel)}</div><div class="meta">${esc(b.autor)}${b.seiten != null ? ' · ' + zahl(b.seiten) + ' Seiten' : ' · Seitenzahl unbekannt'}</div>
+      <div class="dauer">${minuten != null ? `Geschätzte Lesedauer: ca. ${formatStunden(minuten)} ${minuten >= 24 * 60 ? ` (${formatTageStunden(minuten)})` : ''} bei ${zahl1(state.einst.minutenProSeite)} Min. pro Seite` : 'Lesedauer nicht schätzbar, ohne Seitenzahl.'}</div></div>
+      <p class="muted small" style="margin-top:10px">${info}</p>`;
+  }
+
+  function renderRueckblick(alle, o) {
+    const jahr = Number(isoDatum(new Date()).slice(0, 4)) - 1; // immer das Vorjahr
+    $('rueckblick-titel').textContent = `Rückblick ${jahr}`;
+    const r = rueckblick(alle, jahr, o);
+    const el = $('wrapped');
+    if (!r.anzahl) {
+      rueckblickDaten = null;
+      el.innerHTML = `<p class="muted" style="padding:16px">Im Jahr ${jahr} hast du keine Bücher mit Lesedatum.</p>`;
+      $('btn-png').disabled = true;
+      return;
+    }
+    // ein Vergleich zur Lesedauer, dessen Ergebnis möglichst nah an 10 liegt
+    const vgl = waehleVergleiche(r.minuten / 60, 'Std.').filter(v => !v.bruch)
+      .sort((a, b) => Math.abs(Math.log10(a.verhaeltnis) - 1) - Math.abs(Math.log10(b.verhaeltnis) - 1))[0] || null;
+    const svg = rueckblickSVG(r, vgl && { zahlText: vgl.zahlText, name: vgl.name });
+    rueckblickDaten = { svg, jahr };
+    el.innerHTML = svg;
+    $('btn-png').disabled = false;
+  }
+
+  function speicherePNG() {
+    if (!rueckblickDaten) return;
+    const { svg, jahr } = rueckblickDaten;
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = 1080; c.height = 1350;
+      c.getContext('2d').drawImage(img, 0, 0, 1080, 1350);
+      const a = document.createElement('a');
+      a.href = c.toDataURL('image/png');
+      a.download = `lesejahr-${jahr}.png`;
+      document.body.appendChild(a); a.click(); a.remove();
+    };
+    img.onerror = () => alert('Das Bild konnte nicht erzeugt werden.');
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
   }
 
   /* ---------- Jahresziel ---------- */

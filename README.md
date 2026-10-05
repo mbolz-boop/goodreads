@@ -34,13 +34,17 @@ Die App ist in Tabs gegliedert: Übersicht, Jahre, Autoren & Bücher, Bewertunge
 - **Erscheinungsjahr:** nur `Original Publication Year`. Klassiker sind vor 1950 erschienen, Neuerscheinungen in den letzten 5 Jahren. Fehlende Werte werden ausgewiesen.
 - **Regale:** nur eigene Regale aus `Bookshelves` (keine echten Genres); `read`, `to-read` und `currently-reading` sind herausgefiltert.
 - **Bewertungsvergleich:** nur Bücher mit eigener Bewertung. Ab einer mittleren Abweichung von ±0,25 Sternen gilt man als „streng“ bzw. „mild“. Bei weniger als 3 bewerteten Büchern je Längenklasse erscheint ein Hinweis auf geringe Aussagekraft.
+- **Meilensteine:** zählen über alle gelesenen Bücher (10, 25, 50, 100 … Bücher; 5.000, 10.000 … Seiten). Das Datum ist das Lesedatum des Buchs, mit dem der Meilenstein erreicht wurde.
+- **Bücherstapel:** Anzahl Bücher des gewählten Zeitraums × Dicke pro Buch (Startwert 2,5 cm, im Feld änderbar). Der Vergleich nutzt die Liste `GEBAEUDE` ganz oben in `index.html`.
+- **Zufälliges Buch:** zieht aus dem Regal `to-read`. Mit Seitenlimit fallen Bücher ohne Seitenzahl heraus.
+- **Rückblick:** zeigt immer das Vorjahr. Der Button „Als Bild speichern“ erzeugt das PNG lokal im Browser.
 - **Heatmap, Wochentage, Streaks:** basieren auf dem Datum, an dem du ein Buch bei Goodreads als gelesen markiert hast. Der aktuelle Streak fällt auf 0, solange im laufenden Monat noch kein Buch beendet ist.
 
 ## Anpassen
 
 Alle Einstellungen (Jahresziel, Minuten pro Seite, Schalter, Zeitraum, aktiver Tab, nachgetragene Seitenzahlen) speichert die App im `localStorage`.
 
-Ganz oben in `index.html` stehen `KONFIG` (Standard-Minuten pro Seite, Bereich für Vergleiche) und `VERGLEICHE`. Dort kannst du eigene Vergleiche ergänzen:
+Ganz oben in `index.html` stehen `KONFIG` (Standard-Minuten pro Seite, Bereich für Vergleiche) und `VERGLEICHE`. Dort kannst du eigene Vergleiche ergänzen (Gebäudehöhen für den Bücherstapel stehen in `GEBAEUDE`, gleiches Format mit `einheit: 'm'`):
 
 ```js
 { name: 'Flug Berlin–New York', wert: 9, einheit: 'Std.', quelle: 'Direktflug ca. 8–9 Std.' },
