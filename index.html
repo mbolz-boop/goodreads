@@ -14,6 +14,8 @@
 const KONFIG = {
   // Lesegeschwindigkeit: Minuten pro Seite (Startwert, im Browser änderbar)
   minutenProSeite: 2,
+  // Jahresziel: Bücher pro Jahr (Startwert, im Browser änderbar)
+  jahresziel: 25,
   // Vergleiche gelten als "sinnvoll", wenn das Ergebnis in diesem Bereich liegt
   vergleichMin: 1,
   vergleichMax: 100,
@@ -82,6 +84,7 @@ const VERGLEICHE = [
   --warn-text: #6b4a00;
   --danger: #b3261e;
   --ok: #1d7a3e;
+  --hm0: #ebe9e3; --hm1: #c5daf5; --hm2: #8db7ec; --hm3: #4a8ee0; --hm4: #1f63b8;
   --radius: 12px;
   --shadow: 0 1px 2px rgba(0,0,0,.05), 0 2px 8px rgba(0,0,0,.04);
 }
@@ -105,6 +108,7 @@ const VERGLEICHE = [
     --warn-text: #f1d48f;
     --danger: #f2867f;
     --ok: #6fcf8f;
+    --hm0: #262624; --hm1: #1d3555; --hm2: #25528a; --hm3: #3477cc; --hm4: #6aa6f0;
     --shadow: none;
   }
 }
@@ -197,18 +201,19 @@ input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
 .seg button[aria-pressed=true] { background: var(--accent); color: #fff; }
 .chart-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .chart-head h2 { margin: 0; }
-#chart { position: relative; width: 100%; }
-#chart svg { display: block; width: 100%; height: auto; overflow: visible; }
-#chart .bar { fill: var(--bar); pointer-events: none; }
-#chart .bar.dim { fill: var(--bar-dim); }
-#chart .hit { fill: transparent; cursor: pointer; }
-#chart .hit:focus { outline: none; }
-#chart .hit:focus-visible + .bar, #chart .grp:hover .bar { filter: brightness(1.12); }
-#chart .grid { stroke: var(--grid); stroke-width: 1; }
-#chart .axis-text { fill: var(--text-3); font-size: 12px; }
-#chart .val-text { fill: var(--text-2); font-size: 12px; font-weight: 600; }
-#chart .yr-text { fill: var(--text-2); font-size: 12px; }
-#chart .yr-text.sel { fill: var(--text); font-weight: 700; }
+.viz { position: relative; width: 100%; }
+.viz svg { display: block; width: 100%; height: auto; overflow: visible; }
+.viz .bar { fill: var(--bar); pointer-events: none; }
+.viz .bar.dim { fill: var(--bar-dim); }
+.viz .hit { fill: transparent; }
+.viz .hit.klick { cursor: pointer; }
+.viz .hit:focus { outline: none; }
+.viz .hit:focus-visible + .bar, .viz .grp:hover .bar { filter: brightness(1.12); }
+.viz .grid { stroke: var(--grid); stroke-width: 1; }
+.viz .axis-text { fill: var(--text-3); font-size: 12px; }
+.viz .val-text { fill: var(--text-2); font-size: 12px; font-weight: 600; }
+.viz .yr-text { fill: var(--text-2); font-size: 12px; }
+.viz .yr-text.sel { fill: var(--text); font-weight: 700; }
 .tooltip {
   position: absolute; pointer-events: none; background: var(--text); color: var(--bg);
   padding: 6px 10px; border-radius: 6px; font-size: .82rem; white-space: nowrap;
@@ -243,6 +248,41 @@ tfoot td { font-weight: 650; border-bottom: 0; }
 .tab-panel.aktiv { display: block; }
 .ohne-datum-hinweis { font-size: .85rem; color: var(--warn-text); background: var(--warn-bg); border-radius: 8px; padding: 6px 10px; margin: 0 0 8px; }
 .ohne-datum-hinweis:empty { display: none; }
+/* Jahresziel */
+.ziel-kopf { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; }
+.ziel-zahl { font-size: 1.7rem; font-weight: 650; letter-spacing: -.02em; }
+.fortschritt { position: relative; height: 14px; background: var(--surface-2); border-radius: 7px; margin: 12px 0 6px; overflow: visible; }
+.fortschritt .balken { height: 100%; background: var(--bar); border-radius: 7px; max-width: 100%; }
+.fortschritt .soll { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--text); border-radius: 1px; }
+.fortschritt-legende { display: flex; justify-content: space-between; font-size: .78rem; color: var(--text-3); }
+.ziel-status { margin: 12px 0 4px; font-weight: 600; }
+.ziel-status .icon { display: inline-block; width: 1.3em; }
+.ziel-status.ok { color: var(--ok); }
+.ziel-status.nein { color: var(--warn-text); }
+.ziel-zeilen { margin: 4px 0 0; padding-left: 1.2em; color: var(--text-2); font-size: .92rem; }
+label.inline { display: inline-flex; align-items: center; gap: 8px; font-size: .92rem; }
+.erklaerung { font-size: .82rem; color: var(--text-3); margin: -4px 0 12px; }
+.erklaerung strong { color: var(--text-2); }
+/* Heatmap */
+.viz .hm-zelle { stroke: var(--surface); stroke-width: 2; }
+.viz .hm-l0 { fill: var(--hm0); } .viz .hm-l1 { fill: var(--hm1); } .viz .hm-l2 { fill: var(--hm2); }
+.viz .hm-l3 { fill: var(--hm3); } .viz .hm-l4 { fill: var(--hm4); }
+.viz .hm-text { font-size: 11px; font-weight: 600; pointer-events: none; fill: var(--text); }
+.viz .hm-text.hell { fill: #fff; }
+.viz .hm-zeile.dim { opacity: .35; }
+.viz .hm-zeile[data-jahr] { cursor: pointer; }
+.viz .hm-zelle-grp:hover .hm-zelle, .viz .hm-zelle-grp:focus-visible .hm-zelle { stroke: var(--text); }
+.viz .hm-zelle-grp:focus { outline: none; }
+.legende { display: flex; align-items: center; gap: 4px; font-size: .78rem; color: var(--text-3); margin-top: 8px; }
+.legende i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
+/* Listen */
+.zwei-spalten { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 16px; }
+.zwei-spalten h3 { font-size: .95rem; margin: 0 0 8px; color: var(--text-2); }
+.buchliste { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.buchliste li { background: var(--surface-2); border-radius: 10px; padding: 8px 12px; font-size: .92rem; }
+.buchliste .titel { font-weight: 600; }
+.buchliste .meta { display: block; font-size: .8rem; color: var(--text-3); }
+.buchliste .wert { float: right; font-weight: 650; margin-left: 8px; font-variant-numeric: tabular-nums; }
 footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top: 32px; }
 </style>
 </head>
@@ -296,6 +336,14 @@ footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top
     <!-- Tab: Übersicht -->
     <div class="tab-panel" role="tabpanel" data-panel="uebersicht">
       <section class="card">
+        <div class="chart-head">
+          <h2 id="ziel-titel">Jahresziel</h2>
+          <label class="inline">Ziel <input type="number" id="inp-ziel" min="1" max="1000" step="1"> Bücher</label>
+        </div>
+        <div id="ziel"></div>
+      </section>
+
+      <section class="card">
         <h2 id="kpi-titel">Kennzahlen</h2>
         <div class="kpis" id="kpis"></div>
       </section>
@@ -321,9 +369,44 @@ footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top
           </div>
         </div>
         <p class="ohne-datum-hinweis" id="jahre-ohne-datum"></p>
-        <div id="chart"></div>
+        <div class="viz" id="chart"></div>
         <p class="chart-hinweis" id="chart-hinweis"></p>
         <div class="tbl-wrap"><table id="tbl-jahre"></table></div>
+      </section>
+    </div>
+
+    <div class="tab-panel" role="tabpanel" data-panel="jahre" data-zusatz="1">
+      <section class="card">
+        <h2>Lesemonate</h2>
+        <p class="erklaerung"><strong>Hinweis:</strong> Das Lesedatum ist der Tag, an dem du das Buch bei Goodreads als gelesen markiert hast – nicht zwingend der Tag, an dem du es beendet hast. Alle Jahre, das gewählte Jahr ist hervorgehoben.</p>
+        <p class="ohne-datum-hinweis" id="hm-ohne-datum"></p>
+        <div class="viz" id="heatmap"></div>
+        <div class="legende" id="hm-legende"></div>
+      </section>
+
+      <section class="card">
+        <h2 id="wt-titel">Bücher pro Wochentag</h2>
+        <p class="erklaerung">Wochentag des Lesedatums bei Goodreads (siehe Hinweis oben).</p>
+        <p class="ohne-datum-hinweis" id="wt-ohne-datum"></p>
+        <div class="viz" id="wochentage"></div>
+      </section>
+
+      <section class="card">
+        <h2>Streaks und Pausen</h2>
+        <p class="erklaerung">Über alle Jahre. Ein Streak zählt aufeinanderfolgende Monate mit mindestens einem beendeten Buch; der aktuelle Streak fällt auf 0, solange im laufenden Monat noch kein Buch beendet ist.</p>
+        <p class="ohne-datum-hinweis" id="st-ohne-datum"></p>
+        <div class="kpis" id="streaks"></div>
+      </section>
+
+      <section class="card">
+        <h2 id="zbl-titel">Zeit bis zum Lesen</h2>
+        <p class="hinweis"><strong>Kein Lesetempo!</strong> Gemessen werden die Tage zwischen dem Hinzufügen bei Goodreads (<em>Date Added</em>) und dem Lesedatum (<em>Date Read</em>). Viele Bücher liegen lange im Regal, bevor du sie anfängst – wie schnell du liest, lässt sich daraus nicht ablesen.</p>
+        <p class="ohne-datum-hinweis" id="zbl-ohne-datum"></p>
+        <div class="kpis" id="zbl-kpis"></div>
+        <div class="zwei-spalten">
+          <div><h3>Am längsten im Regal</h3><ul class="buchliste" id="zbl-lang"></ul></div>
+          <div><h3>Am kürzesten im Regal</h3><ul class="buchliste" id="zbl-kurz"></ul></div>
+        </div>
       </section>
     </div>
 
@@ -561,6 +644,126 @@ function jahresAuswertung(buecher, opt) {
   return res;
 }
 
+/* ---------- Leseverhalten ---------- */
+
+/** 'YYYY-MM-DD' → Tageszahl (UTC, unabhängig von Zeitzone/Sommerzeit) */
+function tagNr(datum) {
+  const [j, m, t] = datum.split('-').map(Number);
+  return Math.round(Date.UTC(j, m - 1, t) / 86400000);
+}
+function tageZwischen(von, bis) { return tagNr(bis) - tagNr(von); }
+/** Date → 'YYYY-MM-DD' (lokales Datum) */
+function isoDatum(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function median(zahlen) {
+  if (!zahlen.length) return null;
+  const s = zahlen.slice().sort((a, b) => a - b), h = s.length >> 1;
+  return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2;
+}
+
+/** Jahresziel für das laufende Jahr. heute: 'YYYY-MM-DD'. Hochrechnung mit dem Tempo seit 1. Januar. */
+function jahreszielStatus(buecher, ziel, heute, opt) {
+  const jahr = Number(heute.slice(0, 4));
+  const gelesen = buecher.filter(b => b.jahr === jahr).reduce((a, b) => a + gewicht(b, opt), 0);
+  const tageImJahr = tageZwischen(`${jahr}-01-01`, `${jahr + 1}-01-01`);
+  const tageVergangen = tageZwischen(`${jahr}-01-01`, heute) + 1; // heute zählt mit
+  const tageRest = tageImJahr - tageVergangen;
+  const hochrechnung = gelesen / tageVergangen * tageImJahr;
+  const sollBisHeute = ziel * tageVergangen / tageImJahr;
+  const fehlend = Math.max(0, ziel - gelesen);
+  const monateRest = tageRest / (tageImJahr / 12);
+  return {
+    jahr, ziel, gelesen, tageVergangen, tageImJahr, tageRest,
+    hochrechnung,
+    sollBisHeute,
+    vorsprung: gelesen - sollBisHeute,      // > 0: vor dem Plan
+    aufKurs: hochrechnung >= ziel,
+    erreicht: gelesen >= ziel,
+    fehlend,
+    proMonatNoetig: fehlend > 0 ? (monateRest > 0 ? fehlend / monateRest : Infinity) : 0,
+  };
+}
+
+/** Tage zwischen Date Added und Date Read – KEIN Lesetempo, sondern Zeit im Regal bis zum Lesedatum */
+function zeitBisZumLesen(buecher, anzahlListe = 3) {
+  const mitDaten = [];
+  let ohneDaten = 0, nachtraeglich = 0;
+  for (const b of buecher) {
+    if (!b.datum || !b.hinzugefuegt) { ohneDaten++; continue; }
+    const tage = tageZwischen(b.hinzugefuegt, b.datum);
+    if (tage < 0) { nachtraeglich++; continue; } // erst nach dem Lesen bei Goodreads erfasst
+    mitDaten.push({ buch: b, tage });
+  }
+  const tage = mitDaten.map(x => x.tage);
+  const sortiert = mitDaten.slice().sort((a, b) => a.tage - b.tage || a.buch.titel.localeCompare(b.buch.titel, 'de'));
+  return {
+    anzahl: mitDaten.length,
+    ohneDaten,
+    nachtraeglich,
+    median: median(tage),
+    durchschnitt: tage.length ? tage.reduce((a, b) => a + b, 0) / tage.length : null,
+    kuerzeste: sortiert.slice(0, anzahlListe),
+    laengste: sortiert.slice(-anzahlListe).reverse(),
+  };
+}
+
+/** Beendete Bücher je Jahr × Monat: [{jahr, monate: [12 Zahlen]}], Lücken-Jahre mit 0 */
+function monatsMatrix(buecher, opt) {
+  const map = new Map();
+  for (const b of buecher) {
+    if (!b.datum) continue;
+    const j = b.jahr, m = Number(b.datum.slice(5, 7)) - 1;
+    if (!map.has(j)) map.set(j, new Array(12).fill(0));
+    map.get(j)[m] += gewicht(b, opt);
+  }
+  if (!map.size) return [];
+  const jahre = [...map.keys()], res = [];
+  for (let j = Math.min(...jahre); j <= Math.max(...jahre); j++) res.push({ jahr: j, monate: map.get(j) || new Array(12).fill(0) });
+  return res;
+}
+
+/** Beendete Bücher je Wochentag, Montag zuerst */
+function wochentage(buecher, opt) {
+  const z = new Array(7).fill(0);
+  for (const b of buecher) {
+    if (!b.datum) continue;
+    const wt = (new Date(tagNr(b.datum) * 86400000).getUTCDay() + 6) % 7; // 0 = Montag
+    z[wt] += gewicht(b, opt);
+  }
+  return z;
+}
+
+/** Monats-Streaks und längste Pause. heute: 'YYYY-MM-DD'. Aktueller Streak = 0, wenn im laufenden Monat noch kein Buch. */
+function streaksUndPausen(buecher, heute) {
+  const mitDatum = buecher.filter(b => b.datum).sort((a, b) => a.datum.localeCompare(b.datum) || a.titel.localeCompare(b.titel, 'de'));
+  const monatIndex = d => Number(d.slice(0, 4)) * 12 + Number(d.slice(5, 7)) - 1;
+  const monate = [...new Set(mitDatum.map(b => monatIndex(b.datum)))].sort((a, b) => a - b);
+  let laengster = null, start = null;
+  for (let i = 0; i < monate.length; i++) {
+    if (i === 0 || monate[i] !== monate[i - 1] + 1) start = monate[i];
+    const laenge = monate[i] - start + 1;
+    if (!laengster || laenge > laengster.monate) laengster = { monate: laenge, von: start, bis: monate[i] };
+  }
+  const set = new Set(monate);
+  let aktuell = 0;
+  for (let m = monatIndex(heute); set.has(m); m--) aktuell++;
+  let pause = null;
+  for (let i = 1; i < mitDatum.length; i++) {
+    const t = tageZwischen(mitDatum[i - 1].datum, mitDatum[i].datum);
+    if (!pause || t > pause.tage) pause = { tage: t, vorher: mitDatum[i - 1], nachher: mitDatum[i] };
+  }
+  const letztes = mitDatum[mitDatum.length - 1];
+  const monatAlsText = idx => ({ jahr: Math.floor(idx / 12), monat: idx % 12 + 1 });
+  return {
+    laengster: laengster && { monate: laengster.monate, von: monatAlsText(laengster.von), bis: monatAlsText(laengster.bis) },
+    aktuell,
+    aktuellSeit: aktuell ? monatAlsText(monatIndex(heute) - aktuell + 1) : null,
+    pause,
+    seitLetztem: letztes ? { tage: tageZwischen(letztes.datum, heute), buch: letztes } : null,
+  };
+}
+
 /* ---------- Formatierung (deutsch) ---------- */
 const NF0 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
 const NF1 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 });
@@ -661,11 +864,12 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     speicherWarnung: false,
     overrides: ladeJSON(SPEICHER.seiten, {}),
     einst: Object.assign(
-      { jahr: 'alle', mehrfach: false, minutenProSeite: KONFIG.minutenProSeite, diagramm: 'buecher', tab: 'uebersicht' },
+      { jahr: 'alle', mehrfach: false, minutenProSeite: KONFIG.minutenProSeite, diagramm: 'buecher', tab: 'uebersicht', jahresziel: KONFIG.jahresziel },
       ladeJSON(SPEICHER.einstellungen, {})
     ),
   };
   if (!(state.einst.minutenProSeite > 0)) state.einst.minutenProSeite = KONFIG.minutenProSeite;
+  if (!(state.einst.jahresziel >= 1)) state.einst.jahresziel = KONFIG.jahresziel;
 
   function speichereEinstellungen() { ls.set(SPEICHER.einstellungen, JSON.stringify(state.einst)); }
   function opt() { return { mehrfach: state.einst.mehrfach, minutenProSeite: state.einst.minutenProSeite }; }
@@ -733,7 +937,9 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     renderHinweise(kAlle);
     renderKennzahlen(k, jahr);
     renderVergleiche(k);
+    renderJahresziel(alle, o);
     renderJahre(alle, o);
+    renderLeseverhalten(alle, gefiltert, o);
     renderOhneSeiten(alle);
   }
 
@@ -754,6 +960,7 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     sel.value = String(state.einst.jahr);
     $('chk-mehrfach').checked = state.einst.mehrfach;
     if (document.activeElement !== $('inp-minuten')) $('inp-minuten').value = String(state.einst.minutenProSeite);
+    if (document.activeElement !== $('inp-ziel')) $('inp-ziel').value = String(state.einst.jahresziel);
     $('dateiinfo').textContent = state.dateiname ? 'Datei: ' + state.dateiname : '';
     document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.modus === state.einst.diagramm)));
   }
@@ -853,49 +1060,16 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
       $('chart-hinweis').textContent = '';
       return;
     }
-    // --- SVG ---
-    const W = Math.max(280, Math.round(chart.clientWidth || 600)), H = W < 500 ? 220 : 260;
-    const m = { l: 44, r: 8, t: 22, b: 30 };
-    const iw = W - m.l - m.r, ih = H - m.t - m.b;
-    const werte = daten.map(d => modus === 'seiten' ? d.seiten : d.buecher);
-    const sk = schoeneSkala(Math.max(...werte));
-    const band = iw / daten.length;
-    const bw = Math.min(28, band * 0.6);
-    const y = v => m.t + ih - (v / sk.max) * ih;
     const hatAuswahl = sel !== 'alle' && sel !== 'ohne';
-    const zeigeAlleWerte = band >= 34;
-    const maxWert = Math.max(...werte);
-    let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Balkendiagramm: ${modus === 'seiten' ? 'Seiten' : 'Bücher'} pro Jahr">`;
-    for (let v = 0; v <= sk.max + 1e-9; v += sk.schritt) {
-      const yy = y(v).toFixed(1);
-      s += `<line class="grid" x1="${m.l}" x2="${W - m.r}" y1="${yy}" y2="${yy}"/>`;
-      s += `<text class="axis-text" x="${m.l - 8}" y="${yy}" text-anchor="end" dominant-baseline="middle">${zahl(v)}</text>`;
-    }
-    daten.forEach((d, i) => {
-      const v = werte[i];
-      const cx = m.l + band * i + band / 2;
-      const x = cx - bw / 2;
-      const top = y(v);
-      const h = m.t + ih - top;
-      const r = Math.min(4, h, bw / 2);
+    balkenSVG(chart, daten.map(d => {
       const istSel = hatAuswahl && Number(sel) === d.jahr;
-      const dim = hatAuswahl && !istSel;
-      // Balken: oben abgerundet, unten eckig
-      const pfad = h > 0
-        ? `M${x},${m.t + ih} V${top + r} Q${x},${top} ${x + r},${top} H${x + bw - r} Q${x + bw},${top} ${x + bw},${top + r} V${m.t + ih} Z`
-        : '';
-      const tip = `${d.jahr}: ${zahl(d.buecher)} ${d.buecher === 1 ? 'Buch' : 'Bücher'} · ${zahl(d.seiten)} Seiten · ${formatStunden(d.minuten)}`;
-      s += `<g class="grp" data-jahr="${d.jahr}" data-tip="${esc(tip)}">`;
-      s += `<rect class="hit" x="${m.l + band * i}" y="${m.t}" width="${band}" height="${ih + m.b}" tabindex="0" role="button" aria-label="${esc(tip)} – klicken zum Filtern"/>`;
-      if (pfad) s += `<path class="bar${dim ? ' dim' : ''}" d="${pfad}"/>`;
-      if (v > 0 && (zeigeAlleWerte || v === maxWert || istSel)) {
-        s += `<text class="val-text" x="${cx}" y="${top - 6}" text-anchor="middle">${zahl(v)}</text>`;
-      }
-      s += `<text class="yr-text${istSel ? ' sel' : ''}" x="${cx}" y="${H - 8}" text-anchor="middle">${band < 22 ? (i % 2 ? '' : "'" + String(d.jahr).slice(2)) : band < 40 ? "'" + String(d.jahr).slice(2) : d.jahr}</text>`;
-      s += '</g>';
-    });
-    s += '</svg><div class="tooltip hidden" id="tooltip"></div>';
-    chart.innerHTML = s;
+      return {
+        label: String(d.jahr), kurz: "'" + String(d.jahr).slice(2),
+        wert: modus === 'seiten' ? d.seiten : d.buecher,
+        tip: `${d.jahr}: ${zahl(d.buecher)} ${d.buecher === 1 ? 'Buch' : 'Bücher'} · ${zahl(d.seiten)} Seiten · ${formatStunden(d.minuten)}`,
+        jahr: d.jahr, sel: istSel, dim: hatAuswahl && !istSel,
+      };
+    }), { aria: `Balkendiagramm: ${modus === 'seiten' ? 'Seiten' : 'Bücher'} pro Jahr`, klickText: ' – klicken zum Filtern' });
 
     const notizen = ['Klick auf einen Balken oder eine Zeile filtert nach diesem Jahr.'];
     if (o.mehrfach && alle.some(b => b.leseanzahl > 1)) notizen.push('Wiederholte Lesungen zählen im Jahr des (letzten) Lesedatums – Goodreads exportiert nur dieses.');
@@ -911,6 +1085,188 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     }
     t += `</tbody><tfoot><tr><td>Summe (mit Datum)</td><td>${zahl(summe.buecher)}</td><td>${zahl(summe.seiten)}</td><td>${formatStunden(summe.minuten)}</td>${hatOhneSeiten ? `<td>${zahl(summe.ohneSeiten)}</td>` : ''}</tr></tfoot>`;
     $('tbl-jahre').innerHTML = t;
+  }
+
+  /* ---------- Generisches Balkendiagramm (SVG) ---------- */
+  // items: [{label, kurz?, wert, tip, jahr?, sel?, dim?}] – mit jahr wird der Balken klickbar (Filter)
+  function balkenSVG(el, items, { aria = 'Balkendiagramm', klickText = '', hoehe } = {}) {
+    const W = Math.max(260, Math.round(el.clientWidth || 600));
+    const H = hoehe || (W < 500 ? 220 : 260);
+    const m = { l: 44, r: 8, t: 22, b: 30 };
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+    const werte = items.map(d => d.wert);
+    const maxWert = Math.max(0, ...werte);
+    const sk = schoeneSkala(maxWert);
+    const band = iw / items.length;
+    const bw = Math.min(28, band * 0.6);
+    const y = v => m.t + ih - (v / sk.max) * ih;
+    const zeigeAlleWerte = band >= 34;
+    let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(aria)}">`;
+    for (let v = 0; v <= sk.max + 1e-9; v += sk.schritt) {
+      const yy = y(v).toFixed(1);
+      s += `<line class="grid" x1="${m.l}" x2="${W - m.r}" y1="${yy}" y2="${yy}"/>`;
+      s += `<text class="axis-text" x="${m.l - 8}" y="${yy}" text-anchor="end" dominant-baseline="middle">${zahl(v)}</text>`;
+    }
+    items.forEach((d, i) => {
+      const v = d.wert;
+      const cx = m.l + band * i + band / 2, x = cx - bw / 2;
+      const top = y(v), h = m.t + ih - top;
+      const r = Math.min(4, h, bw / 2);
+      // Balken: oben abgerundet, unten eckig
+      const pfad = h > 0
+        ? `M${x},${m.t + ih} V${top + r} Q${x},${top} ${x + r},${top} H${x + bw - r} Q${x + bw},${top} ${x + bw},${top + r} V${m.t + ih} Z`
+        : '';
+      const klickbar = d.jahr != null;
+      s += `<g class="grp"${klickbar ? ` data-jahr="${d.jahr}"` : ''} data-tip="${esc(d.tip)}">`;
+      s += `<rect class="hit${klickbar ? ' klick' : ''}" x="${m.l + band * i}" y="${m.t}" width="${band}" height="${ih + m.b}" tabindex="0"${klickbar ? ' role="button"' : ''} aria-label="${esc(d.tip + (klickbar ? klickText : ''))}"/>`;
+      if (pfad) s += `<path class="bar${d.dim ? ' dim' : ''}" d="${pfad}"/>`;
+      if (v > 0 && (zeigeAlleWerte || v === maxWert || d.sel)) {
+        s += `<text class="val-text" x="${cx}" y="${top - 6}" text-anchor="middle">${zahl(v)}</text>`;
+      }
+      const lbl = band < 22 ? (i % 2 ? '' : (d.kurz || d.label)) : band < 40 ? (d.kurz || d.label) : d.label;
+      s += `<text class="yr-text${d.sel ? ' sel' : ''}" x="${cx}" y="${H - 8}" text-anchor="middle">${esc(lbl)}</text>`;
+      s += '</g>';
+    });
+    s += '</svg><div class="tooltip hidden"></div>';
+    el.innerHTML = s;
+  }
+
+  /* ---------- Jahresziel ---------- */
+  const MONATE_KURZ = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+  const MONATE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+  const WOCHENTAGE = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+  const datumDE = d => d ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : '–';
+  const buecherWort = n => n === 1 ? 'Buch' : 'Bücher';
+  const tageText = t => `${zahl(t)} ${t === 1 ? 'Tag' : 'Tage'}`;
+  const tageDativ = t => `${zahl(t)} ${t === 1 ? 'Tag' : 'Tagen'}`; // „in 87 Tagen“
+  function ca1(x) { return zahl1(Math.round(x * 10) / 10); }
+
+  function renderJahresziel(alle, o) {
+    const z = jahreszielStatus(alle, state.einst.jahresziel, isoDatum(new Date()), o);
+    $('ziel-titel').textContent = `Jahresziel ${z.jahr}`;
+    const pct = Math.min(100, z.gelesen / z.ziel * 100);
+    const sollPct = Math.min(100, z.sollBisHeute / z.ziel * 100);
+    let status, zeilen = [];
+    if (z.erreicht) {
+      status = `<p class="ziel-status ok"><span class="icon">✓</span>Ziel erreicht! ${z.gelesen > z.ziel ? `Schon ${zahl(z.gelesen - z.ziel)} ${buecherWort(z.gelesen - z.ziel)} darüber.` : ''}</p>`;
+    } else if (z.aufKurs) {
+      status = `<p class="ziel-status ok"><span class="icon">✓</span>Auf Kurs – du liegst ca. ${ca1(Math.max(0, z.vorsprung))} ${buecherWort(Math.round(z.vorsprung))} vor dem Plan.</p>`;
+    } else {
+      status = `<p class="ziel-status nein"><span class="icon">!</span>Nicht auf Kurs – du liegst ca. ${ca1(-z.vorsprung)} ${buecherWort(Math.round(-z.vorsprung))} hinter dem Plan.</p>`;
+    }
+    zeilen.push(`Hochrechnung bis 31.12.: <strong>ca. ${zahl(Math.round(z.hochrechnung))} ${buecherWort(Math.round(z.hochrechnung))}</strong> (Tempo seit 1. Januar: ${zahl(z.gelesen)} in ${tageDativ(z.tageVergangen)})`);
+    if (!z.erreicht) {
+      zeilen.push(Number.isFinite(z.proMonatNoetig)
+        ? `Für dein Ziel brauchst du im Rest des Jahres noch <strong>ca. ${ca1(z.proMonatNoetig)} ${z.proMonatNoetig === 1 ? 'Buch' : 'Bücher'} pro Monat</strong> (${zahl(z.fehlend)} ${buecherWort(z.fehlend)} in ${tageDativ(z.tageRest)}).`
+        : `Heute ist der letzte Tag des Jahres – es fehlen noch ${zahl(z.fehlend)} ${buecherWort(z.fehlend)}.`);
+    }
+    $('ziel').innerHTML = `
+      <div class="ziel-kopf"><span class="ziel-zahl">${zahl(z.gelesen)} von ${zahl(z.ziel)} Büchern</span><span class="muted small">${zahl(Math.round(pct))} %</span></div>
+      <div class="fortschritt" role="progressbar" aria-valuemin="0" aria-valuemax="${z.ziel}" aria-valuenow="${z.gelesen}" aria-label="Jahresziel-Fortschritt">
+        <div class="balken" style="width:${pct}%"></div>
+        <div class="soll" style="left:calc(${sollPct}% - 1px)" title="Soll bis heute: ca. ${ca1(z.sollBisHeute)}"></div>
+      </div>
+      <div class="fortschritt-legende"><span>0</span><span>Strich = Soll bis heute (ca. ${ca1(z.sollBisHeute)})</span><span>${zahl(z.ziel)}</span></div>
+      ${status}
+      <ul class="ziel-zeilen">${zeilen.map(t => `<li>${t}</li>`).join('')}</ul>
+      <p class="erklaerung" style="margin:10px 0 0">Gilt nur für das laufende Jahr, unabhängig vom Zeitraum-Filter.${o.mehrfach ? ' Mehrfach gelesene Bücher zählen mehrfach (Schalter aktiv).' : ''}</p>`;
+  }
+
+  /* ---------- Leseverhalten ---------- */
+  function renderLeseverhalten(alle, gefiltert, o) {
+    const heute = isoDatum(new Date());
+    const odAlle = ohneDatumText(alle), odFilter = ohneDatumText(gefiltert);
+    $('hm-ohne-datum').textContent = odAlle;
+    $('wt-ohne-datum').textContent = odFilter;
+    $('st-ohne-datum').textContent = odAlle;
+    $('zbl-ohne-datum').textContent = odFilter;
+    renderHeatmap(alle, o);
+
+    // Wochentage (folgt dem Filter)
+    $('wt-titel').textContent = 'Bücher pro Wochentag · ' + zeitraumText(state.einst.jahr);
+    const wt = wochentage(gefiltert, o);
+    const wtEl = $('wochentage');
+    if (wt.some(v => v > 0)) {
+      balkenSVG(wtEl, wt.map((v, i) => ({ label: WOCHENTAGE[i].slice(0, 2), wert: v, tip: `${WOCHENTAGE[i]}: ${zahl(v)} ${buecherWort(v)}` })),
+        { aria: 'Balkendiagramm: Bücher pro Wochentag', hoehe: 200 });
+    } else {
+      wtEl.innerHTML = '<p class="muted">Keine Bücher mit Lesedatum im gewählten Zeitraum.</p>';
+    }
+
+    // Streaks und Pausen (alle Jahre)
+    const st = streaksUndPausen(alle, heute);
+    const monatText = x => `${MONATE[x.monat - 1]} ${x.jahr}`;
+    const buchZeile = b => `${esc(b.titel)} (${datumDE(b.datum)})`;
+    $('streaks').innerHTML = [
+      kpi('Längster Streak', st.laengster ? `${zahl(st.laengster.monate)} ${st.laengster.monate === 1 ? 'Monat' : 'Monate'}` : '–',
+        st.laengster ? (st.laengster.monate === 1 ? monatText(st.laengster.von) : `${monatText(st.laengster.von)} – ${monatText(st.laengster.bis)}`) : ''),
+      kpi('Aktueller Streak', `${zahl(st.aktuell)} ${st.aktuell === 1 ? 'Monat' : 'Monate'}`,
+        st.aktuell ? `seit ${monatText(st.aktuellSeit)}` : `im ${MONATE[Number(heute.slice(5, 7)) - 1]} noch kein Buch beendet`),
+      kpi('Längste Lesepause', st.pause ? tageText(st.pause.tage) : '–',
+        st.pause ? `zwischen ${buchZeile(st.pause.vorher)} und ${buchZeile(st.pause.nachher)}` : '', 'hero'),
+      kpi('Seit dem letzten Buch', st.seitLetztem ? tageText(st.seitLetztem.tage) : '–',
+        st.seitLetztem ? buchZeile(st.seitLetztem.buch) : ''),
+    ].join('');
+
+    // Zeit bis zum Lesen (folgt dem Filter)
+    $('zbl-titel').textContent = 'Zeit bis zum Lesen · ' + zeitraumText(state.einst.jahr);
+    const z = zeitBisZumLesen(gefiltert);
+    const jahreZusatz = t => t >= 365 ? ` (ca. ${ca1(t / 365)} Jahre)` : '';
+    const notiz = [];
+    if (z.nachtraeglich) notiz.push(`${zahl(z.nachtraeglich)} ${buecherWort(z.nachtraeglich)} erst nach dem Lesedatum bei Goodreads hinzugefügt – nicht enthalten.`);
+    $('zbl-kpis').innerHTML = [
+      kpi('Median', z.median != null ? tageText(Math.round(z.median)) : '–', z.median != null ? 'die Hälfte lag kürzer, die Hälfte länger' + jahreZusatz(z.median) : ''),
+      kpi('Durchschnitt', z.durchschnitt != null ? tageText(Math.round(z.durchschnitt)) : '–', jahreZusatz(z.durchschnitt || 0).trim()),
+      kpi('Berücksichtigt', `${zahl(z.anzahl)} ${buecherWort(z.anzahl)}`, notiz.join(' ')),
+    ].join('');
+    const li = x => `<li><span class="wert">${tageText(x.tage)}</span><span class="titel">${esc(x.buch.titel)}</span><span class="meta">${esc(x.buch.autor)} · hinzugefügt ${datumDE(x.buch.hinzugefuegt)}, gelesen ${datumDE(x.buch.datum)}</span></li>`;
+    $('zbl-lang').innerHTML = z.laengste.map(li).join('') || '<li class="muted">–</li>';
+    $('zbl-kurz').innerHTML = z.kuerzeste.map(li).join('') || '<li class="muted">–</li>';
+  }
+
+  function renderHeatmap(alle, o) {
+    const el = $('heatmap');
+    const matrix = monatsMatrix(alle, o).reverse(); // neuestes Jahr oben
+    if (!matrix.length) { el.innerHTML = '<p class="muted">Keine Bücher mit Lesedatum vorhanden.</p>'; $('hm-legende').innerHTML = ''; return; }
+    const titel = new Map(); // "jahr-monat" → Titel
+    for (const b of alle) {
+      if (!b.datum) continue;
+      const key = b.jahr + '-' + (Number(b.datum.slice(5, 7)) - 1);
+      if (!titel.has(key)) titel.set(key, []);
+      titel.get(key).push(b.titel);
+    }
+    const max = Math.max(1, ...matrix.flatMap(r => r.monate));
+    const stufe = n => n <= 0 ? 0 : Math.min(4, Math.ceil(n / max * 4));
+    const W = Math.max(260, Math.round(el.clientWidth || 600));
+    const labelW = 42, kopf = 18;
+    const zelle = Math.max(16, Math.min(44, Math.floor((W - labelW) / 12)));
+    const H = kopf + matrix.length * zelle;
+    const sel = state.einst.jahr, hatAuswahl = sel !== 'alle' && sel !== 'ohne';
+    let s = `<svg viewBox="0 0 ${labelW + zelle * 12} ${H}" width="${labelW + zelle * 12}" height="${H}" role="img" aria-label="Heatmap: beendete Bücher pro Monat und Jahr">`;
+    MONATE_KURZ.forEach((m, i) => {
+      s += `<text class="axis-text" x="${labelW + zelle * i + zelle / 2}" y="12" text-anchor="middle">${zelle < 26 ? m[0] : m}</text>`;
+    });
+    matrix.forEach((r, zi) => {
+      const y0 = kopf + zi * zelle;
+      const istSel = hatAuswahl && Number(sel) === r.jahr;
+      const summe = r.monate.reduce((a, b) => a + b, 0);
+      s += `<g class="hm-zeile${hatAuswahl && !istSel ? ' dim' : ''}" data-jahr="${r.jahr}">`;
+      s += `<text class="yr-text${istSel ? ' sel' : ''}" x="${labelW - 8}" y="${y0 + zelle / 2}" text-anchor="end" dominant-baseline="middle">${r.jahr}</text>`;
+      r.monate.forEach((n, mi) => {
+        const l = stufe(n);
+        const t = titel.get(r.jahr + '-' + mi) || [];
+        const tip = `${MONATE[mi]} ${r.jahr}: ${zahl(n)} ${buecherWort(n)}${t.length ? ' – ' + t.slice(0, 3).join(', ') + (t.length > 3 ? ' …' : '') : ''}`;
+        const x = labelW + zelle * mi;
+        s += `<g class="hm-zelle-grp" data-tip="${esc(tip)}" tabindex="${n ? 0 : -1}" aria-label="${esc(tip)}">`;
+        s += `<rect class="hm-zelle hm-l${l}" x="${x}" y="${y0}" width="${zelle}" height="${zelle}" rx="4"/>`;
+        if (n > 0 && zelle >= 22) s += `<text class="hm-text${l >= 3 ? ' hell' : ''}" x="${x + zelle / 2}" y="${y0 + zelle / 2 + 1}" text-anchor="middle" dominant-baseline="middle">${zahl(n)}</text>`;
+        s += '</g>';
+      });
+      s += `<title>${r.jahr}: ${zahl(summe)} ${buecherWort(summe)}</title></g>`;
+    });
+    s += '</svg><div class="tooltip hidden"></div>';
+    el.innerHTML = s;
+    $('hm-legende').innerHTML = `weniger ${[0, 1, 2, 3, 4].map(l => `<i style="background:var(--hm${l})"></i>`).join('')} mehr <span style="margin-left:8px">· dunkelstes Feld = ${zahl(max)} ${buecherWort(max)}/Monat · Klick auf ein Jahr filtert</span>`;
   }
 
   /* ---------- Bücher ohne Seitenzahl ---------- */
@@ -953,7 +1309,7 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
   document.querySelectorAll('.tabs [data-tab]').forEach(b => b.addEventListener('click', () => {
     state.einst.tab = b.dataset.tab; speichereEinstellungen(); renderTabs();
     b.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-    if (b.dataset.tab === 'jahre') renderJahre(state.buecher, opt()); // Diagrammbreite neu messen
+    render(); // Diagrammbreiten neu messen (versteckte Tabs haben Breite 0)
   }));
   document.querySelector('.tabs').addEventListener('keydown', e => {
     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
@@ -984,6 +1340,10 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     const v = parseFloat(String(e.target.value).replace(',', '.'));
     if (v > 0 && v <= 30) { state.einst.minutenProSeite = v; speichereEinstellungen(); render(); }
   });
+  $('inp-ziel').addEventListener('input', e => {
+    const v = parseInt(e.target.value, 10);
+    if (v >= 1 && v <= 1000) { state.einst.jahresziel = v; speichereEinstellungen(); render(); }
+  });
   document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => {
     state.einst.diagramm = b.dataset.modus; speichereEinstellungen(); render();
   }));
@@ -992,34 +1352,35 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     state.einst.jahr = state.einst.jahr === j ? 'alle' : j;
     speichereEinstellungen(); render();
   }
-  const chart = $('chart');
-  chart.addEventListener('click', e => { const g = e.target.closest('[data-jahr]'); if (g) waehleJahr(Number(g.dataset.jahr)); });
-  chart.addEventListener('keydown', e => {
-    if (e.key !== 'Enter' && e.key !== ' ') return;
-    const g = e.target.closest('[data-jahr]'); if (g) { e.preventDefault(); waehleJahr(Number(g.dataset.jahr)); }
+  // Klick auf Elemente mit data-jahr in Diagrammen → Jahresfilter
+  document.querySelectorAll('.viz').forEach(v => {
+    v.addEventListener('click', e => { const g = e.target.closest('[data-jahr]'); if (g) waehleJahr(Number(g.dataset.jahr)); });
+    v.addEventListener('keydown', e => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const g = e.target.closest('[data-jahr]'); if (g) { e.preventDefault(); waehleJahr(Number(g.dataset.jahr)); }
+    });
+    v.addEventListener('mouseover', e => { const g = e.target.closest('[data-tip]'); if (g) zeigeTip(v, g); });
+    v.addEventListener('mouseleave', () => versteckeTip(v));
+    v.addEventListener('focusin', e => { const g = e.target.closest('[data-tip]'); if (g) zeigeTip(v, g); });
+    v.addEventListener('focusout', () => versteckeTip(v));
   });
-  function zeigeTip(g) {
-    const tip = $('tooltip'); if (!tip) return;
-    const bar = g.querySelector('.bar') || g.querySelector('.hit');
-    const rc = chart.getBoundingClientRect(), rb = bar.getBoundingClientRect();
+  function zeigeTip(v, g) {
+    const tip = v.querySelector('.tooltip'); if (!tip) return;
+    const ziel = g.querySelector('.bar, .hm-zelle') || g.querySelector('.hit') || g;
+    const rc = v.getBoundingClientRect(), rb = ziel.getBoundingClientRect();
     tip.textContent = g.dataset.tip;
     tip.classList.remove('hidden');
     const halb = tip.offsetWidth / 2;
-    const x = Math.min(Math.max(rb.left + rb.width / 2 - rc.left, halb), rc.width - halb);
-    tip.style.left = x + 'px';
+    tip.style.left = Math.min(Math.max(rb.left + rb.width / 2 - rc.left, halb), rc.width - halb) + 'px';
     tip.style.top = Math.max(rb.top - rc.top, 30) + 'px';
   }
-  function versteckeTip() { const tip = $('tooltip'); if (tip) tip.classList.add('hidden'); }
-  chart.addEventListener('mouseover', e => { const g = e.target.closest('.grp'); if (g) zeigeTip(g); });
-  chart.addEventListener('mouseleave', versteckeTip);
-  chart.addEventListener('focusin', e => { const g = e.target.closest('.grp'); if (g) zeigeTip(g); });
-  chart.addEventListener('focusout', versteckeTip);
+  function versteckeTip(v) { const tip = v.querySelector('.tooltip'); if (tip) tip.classList.add('hidden'); }
   let resizeTimer, letzteBreite = 0;
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
-      const w = chart.clientWidth;
-      if (state.buecher.length && w !== letzteBreite) { letzteBreite = w; renderJahre(state.buecher, opt()); }
+      const w = document.querySelector('.wrap').clientWidth;
+      if (state.buecher.length && w !== letzteBreite) { letzteBreite = w; render(); }
     }, 120);
   });
   $('tbl-jahre').addEventListener('click', e => { const tr = e.target.closest('tr[data-jahr]'); if (tr) waehleJahr(Number(tr.dataset.jahr)); });

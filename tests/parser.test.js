@@ -15,7 +15,8 @@ const ctx = vm.createContext({ Intl });
 vm.runInContext(block('konfig') + '\n' + block('kern') + `
   ;Object.assign(globalThis, { KONFIG, VERGLEICHE, parseCSV, zeilenZuDatensaetzen, normalisiereBuecher,
     normalisiereAlle, filterNachJahr, berechneKennzahlen, jahresAuswertung, formatStunden, formatTageStunden,
-    waehleVergleiche, rundeVerhaeltnis, zahl });`, ctx);
+    waehleVergleiche, rundeVerhaeltnis, zahl, jahreszielStatus, zeitBisZumLesen, monatsMatrix, wochentage,
+    streaksUndPausen, tageZwischen, median });`, ctx);
 const K = ctx;
 
 let ok = 0, fail = 0;
@@ -105,6 +106,50 @@ test('Lücken zwischen Jahren werden mit 0 gefüllt', () => {
   const l = K.jahresAuswertung([{ jahr: 2019, seiten: 100, leseanzahl: 1, bewertung: 0 }, { jahr: 2021, seiten: 50, leseanzahl: 1, bewertung: 0 }], opt);
   eq(l.map(j => [j.jahr, j.buecher]), [[2019, 1], [2020, 0], [2021, 1]]);
 });
+
+console.log('\nLeseverhalten (Stichtag 05.10.2026)');
+const HEUTE = '2026-10-05';
+const z = K.jahreszielStatus(buecher, 25, HEUTE, opt);
+test('Jahresziel: 5 von 25, Tag 278 von 365', () => eq([z.gelesen, z.ziel, z.tageVergangen, z.tageImJahr, z.tageRest], [5, 25, 278, 365, 87]));
+test('Hochrechnung seit 1. Januar: 5 / 278 × 365 ≈ 6,6', () => assert.strictEqual(z.hochrechnung.toFixed(2), '6.56'));
+test('nicht auf Kurs, ca. 14 Bücher hinter dem Soll (19,0)', () => eq([z.aufKurs, z.sollBisHeute.toFixed(1), z.vorsprung.toFixed(1)], [false, '19.0', '-14.0']));
+test('noch nötig: 20 Bücher in 87 Tagen ≈ 7,0 pro Monat', () => eq([z.fehlend, z.proMonatNoetig.toFixed(1)], [20, '7.0']));
+test('Jahresziel erreicht → nichts mehr nötig', () => {
+  const z2 = K.jahreszielStatus(buecher, 4, HEUTE, opt); eq([z2.erreicht, z2.aufKurs, z2.proMonatNoetig], [true, true, 0]);
+});
+test('Schaltjahr 2028 hat 366 Tage', () => assert.strictEqual(K.jahreszielStatus([], 10, '2028-03-01', opt).tageImJahr, 366));
+
+const zb = K.zeitBisZumLesen(buecher);
+test('Zeit bis zum Lesen: 21 Bücher, Median 26 Tage, Ø ≈ 229,7', () => eq([zb.anzahl, zb.median, zb.durchschnitt.toFixed(1), zb.ohneDaten], [21, 26, '229.7', 1]));
+test('längste Zeit im Regal', () => eq(zb.laengste.map(x => [x.buch.titel, x.tage]),
+  [['Krieg der Uhren', 2152], ['Der leise Kartograf (Kartograf-Reihe, #1)', 809], ['Fernweh in Moll', 760]]));
+test('kürzeste Zeit', () => eq(zb.kuerzeste.map(x => [x.buch.titel, x.tage]),
+  [['Ein Faltblatt über Möwen', 1], ['Kleine Theorie des Regens', 10], ['Ein Haus am Rand der Karte', 12]]));
+test('erst nach dem Lesen hinzugefügt (negativ) → ausgeschlossen', () => {
+  const r = K.zeitBisZumLesen([{ titel: 'A', datum: '2020-01-10', hinzugefuegt: '2024-05-01' }, { titel: 'B', datum: '2020-01-10', hinzugefuegt: '2020-01-01' }]);
+  eq([r.anzahl, r.nachtraeglich, r.median], [1, 1, 9]);
+});
+test('Median bei gerader Anzahl', () => assert.strictEqual(K.median([4, 1, 3, 2]), 2.5));
+test('Tagesdifferenz über Sommerzeit-Umstellung exakt', () => assert.strictEqual(K.tageZwischen('2026-03-28', '2026-03-30'), 2));
+
+const mm = K.monatsMatrix(buecher, opt);
+test('Heatmap: Jahre 2021–2026, Summe = 21 Bücher mit Datum', () => eq([mm.map(r => r.jahr), mm.flatMap(r => r.monate).reduce((a, b) => a + b, 0)], [[2021, 2022, 2023, 2024, 2025, 2026], 21]));
+test('Heatmap: 2026 = Jan, Feb, Mär, Mai, Aug je 1', () => eq(mm[5].monate, [1, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0]));
+test('Wochentage Mo–So (Python-Gegenprobe)', () => eq(K.wochentage(buecher, opt), [4, 4, 0, 2, 1, 3, 7]));
+
+const st = K.streaksUndPausen(buecher, HEUTE);
+test('längster Streak: 3 Monate, Januar–März 2026', () => eq([st.laengster.monate, st.laengster.von, st.laengster.bis], [3, { jahr: 2026, monat: 1 }, { jahr: 2026, monat: 3 }]));
+test('aktueller Streak = 0 (im Oktober noch kein Buch)', () => assert.strictEqual(st.aktuell, 0));
+test('aktueller Streak läuft, wenn im laufenden Monat ein Buch beendet wurde', () => {
+  const s2 = K.streaksUndPausen(buecher, '2026-03-31'); eq([s2.aktuell, s2.aktuellSeit], [3, { jahr: 2026, monat: 1 }]);
+});
+test('aktueller Streak über den Jahreswechsel', () => {
+  const s3 = K.streaksUndPausen([{ titel: 'a', datum: '2025-11-03' }, { titel: 'b', datum: '2025-12-24' }, { titel: 'c', datum: '2026-01-02' }], '2026-01-20');
+  eq([s3.aktuell, s3.aktuellSeit], [3, { jahr: 2025, monat: 11 }]);
+});
+test('längste Pause: 499 Tage zwischen „Der leise Kartograf“ und „Das große Winterbuch“', () =>
+  eq([st.pause.tage, st.pause.vorher.titel, st.pause.nachher.titel], [499, 'Der leise Kartograf', 'Das große Winterbuch']));
+test('seit dem letzten Buch: 63 Tage', () => eq([st.seitLetztem.tage, st.seitLetztem.buch.titel], [63, 'Mittsommer in Turku']));
 
 console.log('\nFormatierung');
 test('deutsche Tausenderpunkte', () => assert.strictEqual(K.zahl(1234567), '1.234.567'));

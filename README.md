@@ -27,10 +27,13 @@ Die App ist in Tabs gegliedert: Übersicht, Jahre, Autoren & Bücher, Bewertunge
 - **Mehrfach gelesen (`Read Count` > 1):** zählt einmal, außer der Schalter „Mehrfach gelesene Bücher mehrfach zählen“ ist aktiv. Goodreads exportiert nur das letzte Lesedatum, deshalb landen Wiederholungen im Jahr dieses Datums.
 - **Lesedauer:** Seiten × Minuten pro Seite (Standard 2, im Browser änderbar).
 - **Ø Bewertung:** nur Bücher, die du bewertet hast (0 Sterne = nicht bewertet).
+- **Jahresziel:** gilt für das laufende Jahr (Startwert 25, änderbar). Die Hochrechnung nutzt dein Tempo seit dem 1. Januar.
+- **Zeit bis zum Lesen:** Tage zwischen *Date Added* und *Date Read*. Das ist kein Lesetempo, sondern die Zeit, die ein Buch im Regal lag. Bücher, die erst nach dem Lesen bei Goodreads erfasst wurden, fallen heraus.
+- **Heatmap, Wochentage, Streaks:** basieren auf dem Datum, an dem du ein Buch bei Goodreads als gelesen markiert hast. Der aktuelle Streak fällt auf 0, solange im laufenden Monat noch kein Buch beendet ist.
 
 ## Anpassen
 
-Alle Einstellungen (Minuten pro Seite, Schalter, Zeitraum, aktiver Tab, nachgetragene Seitenzahlen) speichert die App im `localStorage`.
+Alle Einstellungen (Jahresziel, Minuten pro Seite, Schalter, Zeitraum, aktiver Tab, nachgetragene Seitenzahlen) speichert die App im `localStorage`.
 
 Ganz oben in `index.html` stehen `KONFIG` (Standard-Minuten pro Seite, Bereich für Vergleiche) und `VERGLEICHE`. Dort kannst du eigene Vergleiche ergänzen:
 
