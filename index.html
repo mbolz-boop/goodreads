@@ -1,0 +1,930 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:">
+<title>Lese-Tracker</title>
+
+<script id="konfig">
+/* =====================================================================
+   KONFIGURATION – hier kannst du Werte anpassen und Vergleiche ergänzen
+   ===================================================================== */
+
+const KONFIG = {
+  // Lesegeschwindigkeit: Minuten pro Seite (Startwert, im Browser änderbar)
+  minutenProSeite: 2,
+  // Vergleiche gelten als "sinnvoll", wenn das Ergebnis in diesem Bereich liegt
+  vergleichMin: 1,
+  vergleichMax: 100,
+  // So viele Vergleiche werden pro Kategorie höchstens angezeigt
+  vergleicheMaxAnzahl: 4,
+};
+
+/* Vergleichswerte. Jeder Eintrag:
+     name    – erscheint als "ca. 6 × <name>"
+     wert    – Zahl in der angegebenen Einheit
+     einheit – 'Std.' (Lesedauer) oder 'Seiten' (Seitenzahl)
+     quelle  – kurze Herkunft / Hinweis, wird klein angezeigt
+   Neue Einträge einfach hinzufügen; die Reihenfolge ist egal. */
+const VERGLEICHE = [
+  // ---- Lesedauer (Stunden) ----
+  { name: 'Fußballspiel (90 Min. + 15 Min. Halbzeit)', wert: 1.75, einheit: 'Std.',
+    quelle: 'Regelspielzeit 2 × 45 Min. plus Pause, ohne Nachspielzeit' },
+  { name: 'Marathonlauf als Hobbyläufer', wert: 4.5, einheit: 'Std.',
+    quelle: 'typische Zielzeit von Freizeitläufern ca. 4–5 Std.' },
+  { name: 'Flug Berlin–New York', wert: 9, einheit: 'Std.',
+    quelle: 'Direktflug westwärts ca. 9 Std., ostwärts eher 8 Std.' },
+  { name: '„Der Herr der Ringe“, alle 3 Filme (Kinofassung)', wert: 9.3, einheit: 'Std.',
+    quelle: '178 + 179 + 201 Min. = 558 Min.' },
+  { name: 'Harry-Potter-Marathon (alle 8 Filme am Stück)', wert: 19.6, einheit: 'Std.',
+    quelle: 'Kinofassungen zusammen ca. 1.180 Min.' },
+  { name: '40-Stunden-Arbeitswoche', wert: 40, einheit: 'Std.',
+    quelle: '5 Tage à 8 Std.' },
+  { name: '„Game of Thrones“ komplett (73 Folgen)', wert: 70, einheit: 'Std.',
+    quelle: '8 Staffeln, Folgen meist 50–80 Min.' },
+  { name: 'Arbeitsjahr in Vollzeit', wert: 1760, einheit: 'Std.',
+    quelle: '220 Arbeitstage à 8 Std. (nach Urlaub und Feiertagen)' },
+
+  // ---- Seiten ----
+  { name: '„Der kleine Prinz“', wert: 100, einheit: 'Seiten',
+    quelle: 'deutsche Ausgaben ca. 90–110 Seiten' },
+  { name: '„Harry Potter und der Stein der Weisen“', wert: 330, einheit: 'Seiten',
+    quelle: 'je nach Ausgabe ca. 300–350 Seiten' },
+  { name: '„Krieg und Frieden“', wert: 1250, einheit: 'Seiten',
+    quelle: 'je nach Ausgabe und Übersetzung ca. 1.200–1.300 Seiten, teils mehr' },
+  { name: 'alle 7 Harry-Potter-Bände', wert: 4000, einheit: 'Seiten',
+    quelle: 'je nach Ausgabe ca. 3.400–4.300 Seiten' },
+  { name: 'Brockhaus Enzyklopädie (21. Aufl., alle 30 Bände)', wert: 24500, einheit: 'Seiten',
+    quelle: 'laut Verlag rund 24.500 Seiten' },
+];
+</script>
+
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f6f5f2;
+  --surface: #fcfcfb;
+  --surface-2: #efede8;
+  --border: #e0ddd5;
+  --text: #1b1b1a;
+  --text-2: #52514e;
+  --text-3: #7a7974;
+  --accent: #2a78d6;
+  --accent-soft: #dce9f9;
+  --bar: #2a78d6;
+  --bar-dim: #a9c8ee;
+  --grid: #e6e3dc;
+  --warn-bg: #fff4dc;
+  --warn-border: #ecc56a;
+  --warn-text: #6b4a00;
+  --danger: #b3261e;
+  --ok: #1d7a3e;
+  --radius: 12px;
+  --shadow: 0 1px 2px rgba(0,0,0,.05), 0 2px 8px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #121211;
+    --surface: #1a1a19;
+    --surface-2: #242422;
+    --border: #33322f;
+    --text: #f3f2ee;
+    --text-2: #c3c2b7;
+    --text-3: #918f86;
+    --accent: #5d9ef0;
+    --accent-soft: #1f3350;
+    --bar: #3987e5;
+    --bar-dim: #24456e;
+    --grid: #2c2b28;
+    --warn-bg: #2f2612;
+    --warn-border: #7a5a14;
+    --warn-text: #f1d48f;
+    --danger: #f2867f;
+    --ok: #6fcf8f;
+    --shadow: none;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+.wrap { max-width: 1080px; margin: 0 auto; padding: 24px 16px 64px; }
+header.top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: space-between; margin-bottom: 20px; }
+h1 { font-size: 1.6rem; margin: 0; letter-spacing: -.01em; }
+h1 small { display: block; font-size: .85rem; font-weight: 400; color: var(--text-3); }
+h2 { font-size: 1.15rem; margin: 0 0 12px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+button, .btn {
+  font: inherit; font-size: .9rem; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  padding: 7px 14px; border-radius: 8px; line-height: 1.3;
+}
+button:hover, .btn:hover { background: var(--surface-2); }
+button:focus-visible, input:focus-visible, select:focus-visible, .btn:focus-within, [tabindex]:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary:hover { filter: brightness(1.08); background: var(--accent); }
+button.danger { color: var(--danger); }
+.card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px; box-shadow: var(--shadow); margin-bottom: 20px;
+}
+.hidden { display: none !important; }
+.muted { color: var(--text-3); }
+.small { font-size: .85rem; }
+
+/* Upload */
+#dropzone {
+  border: 2px dashed var(--border); border-radius: var(--radius); background: var(--surface);
+  padding: 48px 20px; text-align: center; transition: border-color .15s, background .15s;
+}
+#dropzone.drag { border-color: var(--accent); background: var(--accent-soft); }
+#dropzone p { margin: 8px 0; }
+#dropzone .big { font-size: 1.15rem; font-weight: 600; }
+.fehler { color: var(--danger); font-weight: 500; }
+input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+/* Werkzeugleiste */
+.toolbar { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; }
+.toolbar label { display: inline-flex; align-items: center; gap: 8px; font-size: .92rem; }
+select, input[type=number] {
+  font: inherit; font-size: .92rem; color: var(--text); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px;
+}
+input[type=number] { width: 5.5em; }
+input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
+.dateiinfo { margin-left: auto; font-size: .82rem; color: var(--text-3); }
+
+/* Hinweise */
+.hinweis {
+  background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text);
+  border-radius: 10px; padding: 10px 14px; margin: 0 0 10px; font-size: .92rem;
+}
+.hinweis a { color: inherit; }
+
+/* Kennzahlen */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.kpi { background: var(--surface-2); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+.kpi .label { font-size: .82rem; color: var(--text-2); }
+.kpi .wert { font-size: 1.7rem; font-weight: 650; letter-spacing: -.02em; line-height: 1.2; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.kpi .wert.text { font-size: 1.02rem; font-weight: 600; letter-spacing: 0; line-height: 1.35; overflow-wrap: anywhere; }
+.kpi .sub { font-size: .82rem; color: var(--text-3); margin-top: 2px; overflow-wrap: anywhere; }
+.kpi.hero { grid-column: span 2; }
+@media (max-width: 460px) { .kpi.hero { grid-column: span 1; } }
+
+/* Vergleiche */
+.vgl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+.vgl-grid h3 { font-size: .95rem; margin: 0 0 8px; color: var(--text-2); font-weight: 600; }
+.vgl-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.vgl-liste li { display: flex; gap: 12px; align-items: baseline; background: var(--surface-2); border-radius: 10px; padding: 10px 14px; }
+.vgl-zahl { font-weight: 700; font-size: 1.15rem; white-space: nowrap; min-width: 4.6em; font-variant-numeric: tabular-nums; }
+.vgl-text { min-width: 0; }
+.vgl-text .q { display: block; font-size: .78rem; color: var(--text-3); }
+.richtwert { margin: 14px 0 0; font-size: .8rem; color: var(--text-3); }
+
+/* Diagramm */
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; padding: 6px 12px; background: var(--surface); }
+.seg button[aria-pressed=true] { background: var(--accent); color: #fff; }
+.chart-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.chart-head h2 { margin: 0; }
+#chart { position: relative; width: 100%; }
+#chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+#chart .bar { fill: var(--bar); pointer-events: none; }
+#chart .bar.dim { fill: var(--bar-dim); }
+#chart .hit { fill: transparent; cursor: pointer; }
+#chart .hit:focus { outline: none; }
+#chart .hit:focus-visible + .bar, #chart .grp:hover .bar { filter: brightness(1.12); }
+#chart .grid { stroke: var(--grid); stroke-width: 1; }
+#chart .axis-text { fill: var(--text-3); font-size: 12px; }
+#chart .val-text { fill: var(--text-2); font-size: 12px; font-weight: 600; }
+#chart .yr-text { fill: var(--text-2); font-size: 12px; }
+#chart .yr-text.sel { fill: var(--text); font-weight: 700; }
+.tooltip {
+  position: absolute; pointer-events: none; background: var(--text); color: var(--bg);
+  padding: 6px 10px; border-radius: 6px; font-size: .82rem; white-space: nowrap;
+  transform: translate(-50%, calc(-100% - 8px)); z-index: 2;
+}
+.chart-hinweis { font-size: .8rem; color: var(--text-3); margin: 6px 0 0; }
+
+/* Tabellen */
+.tbl-wrap { overflow-x: auto; margin-top: 16px; }
+table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+th, td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+th:first-child, td:first-child { text-align: left; }
+thead th { font-size: .8rem; color: var(--text-2); font-weight: 600; }
+tbody tr.sel { background: var(--accent-soft); }
+tbody tr.klickbar { cursor: pointer; }
+tbody tr.klickbar:hover { background: var(--surface-2); }
+tfoot td { font-weight: 650; border-bottom: 0; }
+
+/* Bücher ohne Seitenzahl */
+.ohne-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ohne-liste li { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: space-between; background: var(--surface-2); border-radius: 10px; padding: 10px 14px; }
+.ohne-liste .titel { font-weight: 600; }
+.ohne-liste .meta { font-size: .82rem; color: var(--text-3); }
+.ohne-liste form { display: flex; gap: 8px; align-items: center; }
+.ohne-liste .status { font-size: .8rem; color: var(--ok); }
+footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top: 32px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Lese-Tracker <small>Deine Goodreads-Bibliothek, ausgewertet im Browser</small></h1>
+    <div class="actions">
+      <button type="button" id="btn-neu" class="hidden">Andere CSV laden</button>
+      <button type="button" id="btn-reset" class="danger hidden">Daten zurücksetzen</button>
+    </div>
+  </header>
+
+  <!-- Upload -->
+  <section id="upload">
+    <div id="dropzone">
+      <p class="big">Goodreads-CSV hierher ziehen</p>
+      <p class="muted">oder</p>
+      <p><label class="btn primary" style="background:var(--accent);color:#fff;border-color:var(--accent)">Datei auswählen<input type="file" id="datei" accept=".csv,text/csv"></label></p>
+      <p class="muted small">Export: Goodreads → My Books → Import and export → Export Library.<br>Die Datei verlässt deinen Computer nicht.</p>
+      <p id="upload-fehler" class="fehler" role="alert"></p>
+    </div>
+  </section>
+
+  <!-- Auswertung -->
+  <main id="app" class="hidden">
+    <section class="card">
+      <div class="toolbar">
+        <label>Zeitraum
+          <select id="sel-jahr"></select>
+        </label>
+        <label><input type="checkbox" id="chk-mehrfach"> Mehrfach gelesene Bücher mehrfach zählen</label>
+        <label>Minuten pro Seite
+          <input type="number" id="inp-minuten" min="0.1" max="30" step="0.1">
+        </label>
+        <span class="dateiinfo" id="dateiinfo"></span>
+      </div>
+    </section>
+
+    <div id="hinweise"></div>
+
+    <section class="card">
+      <h2 id="kpi-titel">Kennzahlen</h2>
+      <div class="kpis" id="kpis"></div>
+    </section>
+
+    <section class="card">
+      <h2>Zum Vergleich</h2>
+      <div class="vgl-grid">
+        <div><h3 id="vgl-zeit-titel">Lesedauer</h3><ul class="vgl-liste" id="vgl-zeit"></ul></div>
+        <div><h3 id="vgl-seiten-titel">Seiten</h3><ul class="vgl-liste" id="vgl-seiten"></ul></div>
+      </div>
+      <p class="richtwert">Richtwerte, je nach Ausgabe, Schnitt oder Strecke unterschiedlich. Alle Angaben gerundet („ca.“).</p>
+    </section>
+
+    <section class="card">
+      <div class="chart-head">
+        <h2>Pro Jahr</h2>
+        <div class="seg" role="group" aria-label="Diagramm zeigt">
+          <button type="button" data-modus="buecher" aria-pressed="true">Bücher</button>
+          <button type="button" data-modus="seiten" aria-pressed="false">Seiten</button>
+        </div>
+      </div>
+      <div id="chart"></div>
+      <p class="chart-hinweis" id="chart-hinweis"></p>
+      <div class="tbl-wrap"><table id="tbl-jahre"></table></div>
+    </section>
+
+    <section class="card" id="ohne-seiten-card">
+      <h2 id="ohne-titel">Bücher ohne Seitenzahl</h2>
+      <p class="muted small" style="margin-top:-6px">Diese Bücher haben in der CSV keine oder 0 Seiten und fehlen deshalb in der Seitensumme. Trage die Seitenzahl hier nach – sie wird nur in deinem Browser gespeichert, die CSV bleibt unverändert.</p>
+      <ul class="ohne-liste" id="ohne-liste"></ul>
+    </section>
+  </main>
+
+  <footer>Läuft komplett lokal · keine Server, kein Tracking · Daten liegen im localStorage dieses Browsers</footer>
+</div>
+
+<script id="kern">
+/* =====================================================================
+   KERN-LOGIK (ohne DOM, wird auch von tests/parser.test.js geprüft)
+   ===================================================================== */
+
+/** RFC-4180-CSV-Parser: Kommas/Zeilenumbrüche in Anführungszeichen, "" als Escape,
+    CRLF/LF, optionales BOM. Liefert ein Array von Zeilen (Arrays von Strings). */
+function parseCSV(text) {
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const zeilen = [];
+  let zeile = [];
+  let feld = '';
+  let inQuotes = false;
+  let feldBegonnen = false; // Feld hat schon Inhalt oder war gequotet
+  const n = text.length;
+  for (let i = 0; i < n; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { feld += '"'; i++; }
+        else inQuotes = false;
+      } else {
+        feld += c;
+      }
+      continue;
+    }
+    if (c === '"' && !feldBegonnen) { inQuotes = true; feldBegonnen = true; continue; }
+    if (c === ',') { zeile.push(feld); feld = ''; feldBegonnen = false; continue; }
+    if (c === '\r' || c === '\n') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      zeile.push(feld); zeilen.push(zeile);
+      zeile = []; feld = ''; feldBegonnen = false;
+      continue;
+    }
+    feld += c; feldBegonnen = true;
+  }
+  if (feldBegonnen || feld !== '' || zeile.length) { zeile.push(feld); zeilen.push(zeile); }
+  // komplett leere Zeilen ignorieren
+  return zeilen.filter(z => !(z.length === 1 && z[0].trim() === ''));
+}
+
+const PFLICHTSPALTEN = ['Title', 'Author', 'Number of Pages', 'Date Read', 'Exclusive Shelf', 'My Rating', 'Read Count'];
+
+/** Wandelt geparste Zeilen in Objekte {Spaltenname: Wert} um und prüft die Pflichtspalten. */
+function zeilenZuDatensaetzen(zeilen) {
+  if (!zeilen.length) throw new Error('Die Datei ist leer.');
+  const kopf = zeilen[0].map(h => h.trim());
+  const fehlend = PFLICHTSPALTEN.filter(s => !kopf.includes(s));
+  if (fehlend.length) {
+    throw new Error('Das sieht nicht nach einem Goodreads-Export aus. Fehlende Spalten: ' + fehlend.join(', '));
+  }
+  return zeilen.slice(1).map(z => {
+    const o = {};
+    kopf.forEach((h, i) => { o[h] = (z[i] ?? '').trim(); });
+    return o;
+  });
+}
+
+/** "YYYY/MM/DD" (auch YYYY-MM-DD) → {datum:'YYYY-MM-DD', jahr} oder null */
+function parseDatum(s) {
+  const m = /^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/.exec((s || '').trim());
+  if (!m) return null;
+  const j = +m[1], mo = +m[2], t = +m[3];
+  if (mo < 1 || mo > 12 || t < 1 || t > 31) return null;
+  return { datum: `${m[1]}-${String(mo).padStart(2, '0')}-${String(t).padStart(2, '0')}`, jahr: j };
+}
+
+/** Seitenzahl: leer, 0, negativ oder unlesbar → null (NICHT 0!) */
+function parseSeiten(s) {
+  const n = parseInt(String(s ?? '').replace(/[^\d]/g, ''), 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function buchId(d) {
+  return d['Book Id'] ? 'gr:' + d['Book Id'] : 'ta:' + d['Title'] + '|' + d['Author'];
+}
+
+/** Datensätze → Liste gelesener Bücher. overrides: {buchId: seiten} (manuell nachgetragen) */
+function normalisiereBuecher(datensaetze, overrides = {}) {
+  const buecher = [];
+  for (const d of datensaetze) {
+    if ((d['Exclusive Shelf'] || '').toLowerCase() !== 'read') continue;
+    const id = buchId(d);
+    const seitenCSV = parseSeiten(d['Number of Pages']);
+    const manuell = seitenCSV == null ? parseSeiten(overrides[id]) : null;
+    const dat = parseDatum(d['Date Read']);
+    const bewertung = parseInt(d['My Rating'], 10);
+    const anzahl = parseInt(d['Read Count'], 10);
+    buecher.push({
+      id,
+      titel: d['Title'] || '(ohne Titel)',
+      autor: d['Author'] || '',
+      seitenCSV,
+      seiten: seitenCSV ?? manuell,
+      seitenManuell: manuell != null,
+      datum: dat ? dat.datum : null,
+      jahr: dat ? dat.jahr : null,
+      bewertung: bewertung >= 1 && bewertung <= 5 ? bewertung : 0, // 0 = nicht bewertet
+      leseanzahl: Number.isFinite(anzahl) && anzahl > 1 ? anzahl : 1,
+    });
+  }
+  return buecher;
+}
+
+/** jahr: 'alle' | 'ohne' | Zahl */
+function filterNachJahr(buecher, jahr) {
+  if (jahr === 'alle' || jahr == null) return buecher;
+  if (jahr === 'ohne') return buecher.filter(b => b.jahr == null);
+  return buecher.filter(b => b.jahr === Number(jahr));
+}
+
+function gewicht(b, opt) { return opt.mehrfach ? b.leseanzahl : 1; }
+
+/** opt: {mehrfach: bool, minutenProSeite: Zahl} */
+function berechneKennzahlen(buecher, opt) {
+  let anzahl = 0, seiten = 0, lesungenMitSeiten = 0, ohneSeiten = 0, ohneDatum = 0;
+  let bewSumme = 0, bewAnzahl = 0, dickstes = null, duennstes = null;
+  for (const b of buecher) {
+    const w = gewicht(b, opt);
+    anzahl += w;
+    if (b.jahr == null) ohneDatum++;
+    if (b.seiten != null) {
+      seiten += b.seiten * w;
+      lesungenMitSeiten += w;
+      if (!dickstes || b.seiten > dickstes.seiten) dickstes = b;
+      if (!duennstes || b.seiten < duennstes.seiten) duennstes = b;
+    } else {
+      ohneSeiten++;
+    }
+    if (b.bewertung > 0) { bewSumme += b.bewertung; bewAnzahl++; }
+  }
+  return {
+    anzahl,
+    titelAnzahl: buecher.length,
+    seiten,
+    ohneSeiten,
+    ohneDatum,
+    minuten: seiten * opt.minutenProSeite,
+    durchschnittSeiten: lesungenMitSeiten ? seiten / lesungenMitSeiten : null,
+    dickstes, duennstes,
+    durchschnittBewertung: bewAnzahl ? bewSumme / bewAnzahl : null,
+    bewertungen: bewAnzahl,
+  };
+}
+
+/** Auswertung pro Jahr (nur Bücher mit Lesedatum), Lücken zwischen den Jahren mit 0 aufgefüllt */
+function jahresAuswertung(buecher, opt) {
+  const map = new Map();
+  for (const b of buecher) {
+    if (b.jahr == null) continue;
+    if (!map.has(b.jahr)) map.set(b.jahr, []);
+    map.get(b.jahr).push(b);
+  }
+  if (!map.size) return [];
+  const jahre = [...map.keys()];
+  const von = Math.min(...jahre), bis = Math.max(...jahre);
+  const res = [];
+  for (let j = von; j <= bis; j++) {
+    const k = berechneKennzahlen(map.get(j) || [], opt);
+    res.push({ jahr: j, buecher: k.anzahl, seiten: k.seiten, minuten: k.minuten, ohneSeiten: k.ohneSeiten });
+  }
+  return res;
+}
+
+/* ---------- Formatierung (deutsch) ---------- */
+const NF0 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
+const NF1 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 });
+function zahl(n) { return NF0.format(n); }
+function zahl1(n) { return NF1.format(n); }
+
+/** Minuten → "1.234 Std." */
+function formatStunden(minuten) {
+  const h = minuten / 60;
+  if (h > 0 && h < 10) return zahl1(Math.round(h * 10) / 10) + ' Std.';
+  return zahl(Math.round(h)) + ' Std.';
+}
+
+/** Minuten → "3 Tage, 4 Std." (24-Std.-Tage) */
+function formatTageStunden(minuten) {
+  let h = Math.round(minuten / 60);
+  if (minuten > 0 && h === 0) return zahl(Math.round(minuten)) + ' Min.';
+  const tage = Math.floor(h / 24);
+  h = h % 24;
+  const teile = [];
+  if (tage) teile.push(zahl(tage) + (tage === 1 ? ' Tag' : ' Tage'));
+  if (h || !tage) teile.push(h + ' Std.');
+  return teile.join(', ');
+}
+
+/* ---------- Vergleiche ---------- */
+
+/** Rundet ein Verhältnis auf eine sinnvoll lesbare Zahl */
+function rundeVerhaeltnis(r) {
+  if (r < 1) return { text: zahl(Math.max(5, Math.round(r * 20) * 5)) + ' %', bruch: true };
+  if (r < 10) return { text: zahl1(Math.round(r * 2) / 2), bruch: false };
+  if (r <= 100) return { text: zahl(Math.round(r)), bruch: false };
+  const stellen = Math.pow(10, Math.floor(Math.log10(r)) - 1); // 2 signifikante Stellen
+  return { text: zahl(Math.round(r / stellen) * stellen), bruch: false };
+}
+
+/** Wählt passende Vergleiche: Ergebnis zwischen min und max; sonst der nächstkleinere bzw. größte Vergleich */
+function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
+  if (!(wert > 0)) return [];
+  const alle = liste
+    .filter(v => v.einheit === einheit && v.wert > 0)
+    .map(v => ({ ...v, verhaeltnis: wert / v.wert }))
+    .sort((a, b) => a.wert - b.wert);
+  if (!alle.length) return [];
+  let auswahl = alle.filter(v => v.verhaeltnis >= k.vergleichMin && v.verhaeltnis <= k.vergleichMax);
+  if (!auswahl.length) {
+    // alles < 1 → kleinster Vergleich; alles > 100 → größter Vergleich
+    auswahl = [alle[0].verhaeltnis < k.vergleichMin ? alle[0] : alle[alle.length - 1]];
+  }
+  if (auswahl.length > 1) {
+    // bevorzugt Ergebnisse um ca. 10 (log. Abstand), damit die Zahlen gut vorstellbar sind,
+    // und überspringt fast gleich große Vergleiche (z. B. 9 vs. 9,3 Std.), damit es abwechslungsreich bleibt
+    const sortiert = auswahl.slice()
+      .sort((a, b) => Math.abs(Math.log10(a.verhaeltnis) - 1) - Math.abs(Math.log10(b.verhaeltnis) - 1));
+    const gewaehlt = [];
+    for (const v of sortiert) {
+      if (gewaehlt.length >= k.vergleicheMaxAnzahl) break;
+      if (gewaehlt.some(g => Math.max(g.wert, v.wert) / Math.min(g.wert, v.wert) < 1.25)) continue;
+      gewaehlt.push(v);
+    }
+    auswahl = gewaehlt.sort((a, b) => a.wert - b.wert);
+  }
+  return auswahl.map(v => {
+    const r = rundeVerhaeltnis(v.verhaeltnis);
+    return { ...v, zahlText: r.text, bruch: r.bruch };
+  });
+}
+</script>
+
+<script id="ui">
+/* =====================================================================
+   OBERFLÄCHE
+   ===================================================================== */
+(function () {
+  const SPEICHER = {
+    csv: 'lesetracker.csv',
+    dateiname: 'lesetracker.dateiname',
+    seiten: 'lesetracker.seiten',
+    einstellungen: 'lesetracker.einstellungen',
+  };
+  const ls = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } },
+    del(k) { try { localStorage.removeItem(k); } catch (e) { /* egal */ } },
+  };
+  function ladeJSON(k, fallback) {
+    try { const v = JSON.parse(ls.get(k)); return v && typeof v === 'object' ? v : fallback; } catch (e) { return fallback; }
+  }
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  const state = {
+    datensaetze: [],
+    buecher: [],
+    dateiname: '',
+    speicherWarnung: false,
+    overrides: ladeJSON(SPEICHER.seiten, {}),
+    einst: Object.assign(
+      { jahr: 'alle', mehrfach: false, minutenProSeite: KONFIG.minutenProSeite, diagramm: 'buecher' },
+      ladeJSON(SPEICHER.einstellungen, {})
+    ),
+  };
+  if (!(state.einst.minutenProSeite > 0)) state.einst.minutenProSeite = KONFIG.minutenProSeite;
+
+  function speichereEinstellungen() { ls.set(SPEICHER.einstellungen, JSON.stringify(state.einst)); }
+  function opt() { return { mehrfach: state.einst.mehrfach, minutenProSeite: state.einst.minutenProSeite }; }
+
+  /* ---------- Laden ---------- */
+  function ladeCSV(text, dateiname, speichern) {
+    let datensaetze;
+    try {
+      datensaetze = zeilenZuDatensaetzen(parseCSV(text));
+    } catch (e) {
+      $('upload-fehler').textContent = e.message;
+      zeigeUpload(true);
+      return false;
+    }
+    $('upload-fehler').textContent = '';
+    state.datensaetze = datensaetze;
+    state.dateiname = dateiname || '';
+    state.speicherWarnung = false;
+    if (speichern) {
+      const ok = ls.set(SPEICHER.csv, text) && ls.set(SPEICHER.dateiname, state.dateiname);
+      if (!ok) { state.speicherWarnung = true; ls.del(SPEICHER.csv); }
+    }
+    zeigeUpload(false); // erst einblenden, damit das Diagramm seine Breite kennt
+    neuBerechnen();
+    return true;
+  }
+
+  function liesDatei(datei) {
+    if (!datei) return;
+    const r = new FileReader();
+    r.onload = () => ladeCSV(String(r.result), datei.name, true);
+    r.onerror = () => { $('upload-fehler').textContent = 'Die Datei konnte nicht gelesen werden.'; };
+    r.readAsText(datei, 'utf-8');
+  }
+
+  function zeigeUpload(an) {
+    const hatDaten = state.datensaetze.length > 0;
+    $('upload').classList.toggle('hidden', !an);
+    $('app').classList.toggle('hidden', an || !hatDaten);
+    $('btn-reset').classList.toggle('hidden', !hatDaten);
+    $('btn-neu').classList.toggle('hidden', !hatDaten || an);
+  }
+
+  function neuBerechnen() {
+    state.buecher = normalisiereBuecher(state.datensaetze, state.overrides);
+    const j = state.einst.jahr;
+    const gueltig = j === 'alle' || (j === 'ohne' && state.buecher.some(b => b.jahr == null)) ||
+      state.buecher.some(b => b.jahr === Number(j));
+    if (!gueltig) state.einst.jahr = 'alle';
+    render();
+  }
+
+  /* ---------- Rendern ---------- */
+  function render() {
+    const o = opt();
+    const alle = state.buecher;
+    const jahr = state.einst.jahr;
+    const gefiltert = filterNachJahr(alle, jahr);
+    const k = berechneKennzahlen(gefiltert, o);
+    const kAlle = berechneKennzahlen(alle, o);
+
+    renderSteuerung(alle);
+    renderHinweise(kAlle);
+    renderKennzahlen(k, jahr);
+    renderVergleiche(k);
+    renderJahre(alle, o);
+    renderOhneSeiten(alle);
+  }
+
+  function zeitraumText(jahr) {
+    if (jahr === 'alle') return 'alle Jahre';
+    if (jahr === 'ohne') return 'ohne Lesedatum';
+    return String(jahr);
+  }
+
+  function renderSteuerung(alle) {
+    const jahre = [...new Set(alle.filter(b => b.jahr != null).map(b => b.jahr))].sort((a, b) => b - a);
+    const hatOhne = alle.some(b => b.jahr == null);
+    const sel = $('sel-jahr');
+    let html = '<option value="alle">Alle Jahre</option>';
+    for (const j of jahre) html += `<option value="${j}">${j}</option>`;
+    if (hatOhne) html += '<option value="ohne">Ohne Lesedatum</option>';
+    sel.innerHTML = html;
+    sel.value = String(state.einst.jahr);
+    $('chk-mehrfach').checked = state.einst.mehrfach;
+    if (document.activeElement !== $('inp-minuten')) $('inp-minuten').value = String(state.einst.minutenProSeite);
+    $('dateiinfo').textContent = state.dateiname ? 'Datei: ' + state.dateiname : '';
+    document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.modus === state.einst.diagramm)));
+  }
+
+  function renderHinweise(kAlle) {
+    const h = [];
+    if (state.speicherWarnung) {
+      h.push('Die CSV ist zu groß für den Browser-Speicher und wurde nicht gespeichert. Beim nächsten Öffnen musst du sie erneut laden.');
+    }
+    if (kAlle.ohneDatum) {
+      h.push(`<strong>${zahl(kAlle.ohneDatum)} ${kAlle.ohneDatum === 1 ? 'Buch' : 'Bücher'} ohne Lesedatum:</strong> in der Gesamtstatistik enthalten, aber nicht in der Jahresauswertung.`);
+    }
+    const offen = state.buecher.filter(b => b.seiten == null).length;
+    if (offen) {
+      h.push(`<strong>${zahl(offen)} ${offen === 1 ? 'Buch' : 'Bücher'} ohne Seitenzahl:</strong> ${offen === 1 ? 'zählt' : 'zählen'} als gelesen, aber nicht zur Seitensumme und Lesedauer. <a href="#ohne-seiten-card">Seitenzahl nachtragen</a>`);
+    }
+    $('hinweise').innerHTML = h.map(t => `<p class="hinweis">${t}</p>`).join('');
+  }
+
+  function kpi(label, wert, sub, klasse = '') {
+    return `<div class="kpi ${klasse}"><div class="label">${label}</div><div class="wert ${klasse.includes('textwert') ? 'text' : ''}">${wert}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`;
+  }
+
+  function buchKurz(b) {
+    return b ? `${esc(b.titel)}` : '–';
+  }
+
+  function renderKennzahlen(k, jahr) {
+    $('kpi-titel').textContent = 'Kennzahlen · ' + zeitraumText(jahr);
+    const mehrfachSub = state.einst.mehrfach && k.anzahl !== k.titelAnzahl
+      ? `${zahl(k.titelAnzahl)} verschiedene Titel` : (k.anzahl !== k.titelAnzahl ? '' : '');
+    const seitenSub = k.ohneSeiten ? `${zahl(k.ohneSeiten)} ${k.ohneSeiten === 1 ? 'Buch' : 'Bücher'} ohne Seitenzahl nicht enthalten` : '';
+    const html = [
+      kpi('Gelesene Bücher', zahl(k.anzahl), mehrfachSub),
+      kpi('Gelesene Seiten', zahl(k.seiten), seitenSub),
+      kpi('Gesamtlesedauer', formatStunden(k.minuten), `${formatTageStunden(k.minuten)} · bei ${zahl1(state.einst.minutenProSeite)} Min. pro Seite`, 'hero'),
+      kpi('Ø Seiten pro Buch', k.durchschnittSeiten != null ? zahl(Math.round(k.durchschnittSeiten)) : '–', ''),
+      kpi('Ø Bewertung', k.durchschnittBewertung != null ? zahl1(Math.round(k.durchschnittBewertung * 10) / 10) + ' ★' : '–',
+        k.bewertungen ? `aus ${zahl(k.bewertungen)} ${k.bewertungen === 1 ? 'Bewertung' : 'Bewertungen'}` : 'keine Bewertungen'),
+      kpi('Dickstes Buch', buchKurz(k.dickstes), k.dickstes ? `${esc(k.dickstes.autor)} · ${zahl(k.dickstes.seiten)} Seiten` : '', 'textwert'),
+      kpi('Dünnstes Buch', buchKurz(k.duennstes), k.duennstes ? `${esc(k.duennstes.autor)} · ${zahl(k.duennstes.seiten)} Seiten` : '', 'textwert'),
+    ];
+    $('kpis').innerHTML = html.join('');
+  }
+
+  function renderVergleichsliste(el, liste, leerText) {
+    if (!liste.length) { el.innerHTML = `<li class="muted small">${leerText}</li>`; return; }
+    el.innerHTML = liste.map(v => {
+      const zahlTeil = v.bruch ? `ca. ${v.zahlText}` : `ca. ${v.zahlText} ×`;
+      const name = v.bruch ? 'von: ' + v.name : v.name;
+      return `<li><span class="vgl-zahl">${zahlTeil}</span><span class="vgl-text">${esc(name)}<span class="q">je ca. ${zahl1(v.wert)} ${v.einheit} · ${esc(v.quelle)}</span></span></li>`;
+    }).join('');
+  }
+
+  function renderVergleiche(k) {
+    const stunden = k.minuten / 60;
+    $('vgl-zeit-titel').textContent = `So lange hast du gelesen (${formatStunden(k.minuten)}) – wie …`;
+    $('vgl-seiten-titel').textContent = `So viele Seiten (${zahl(k.seiten)}) – wie …`;
+    renderVergleichsliste($('vgl-zeit'), waehleVergleiche(stunden, 'Std.'), 'Noch keine Lesedauer – trage Seitenzahlen nach oder wähle einen anderen Zeitraum.');
+    renderVergleichsliste($('vgl-seiten'), waehleVergleiche(k.seiten, 'Seiten'), 'Noch keine Seiten im gewählten Zeitraum.');
+  }
+
+  /* ---------- Jahresauswertung ---------- */
+  function schoeneSkala(max) {
+    if (max <= 0) return { max: 1, schritt: 1 };
+    const roh = max / 4;
+    const p = Math.pow(10, Math.floor(Math.log10(roh)));
+    const f = roh / p;
+    const schritt = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+    const s = Math.max(schritt, max < 4 ? 1 : schritt);
+    return { max: Math.ceil(max / s) * s, schritt: s };
+  }
+
+  function renderJahre(alle, o) {
+    const daten = jahresAuswertung(alle, o);
+    const modus = state.einst.diagramm;
+    const sel = state.einst.jahr;
+    const chart = $('chart');
+    if (!daten.length) {
+      chart.innerHTML = '<p class="muted">Keine Bücher mit Lesedatum vorhanden.</p>';
+      $('tbl-jahre').innerHTML = '';
+      $('chart-hinweis').textContent = '';
+      return;
+    }
+    // --- SVG ---
+    const W = Math.max(280, Math.round(chart.clientWidth || 600)), H = W < 500 ? 220 : 260;
+    const m = { l: 44, r: 8, t: 22, b: 30 };
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+    const werte = daten.map(d => modus === 'seiten' ? d.seiten : d.buecher);
+    const sk = schoeneSkala(Math.max(...werte));
+    const band = iw / daten.length;
+    const bw = Math.min(28, band * 0.6);
+    const y = v => m.t + ih - (v / sk.max) * ih;
+    const hatAuswahl = sel !== 'alle' && sel !== 'ohne';
+    const zeigeAlleWerte = band >= 34;
+    const maxWert = Math.max(...werte);
+    let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Balkendiagramm: ${modus === 'seiten' ? 'Seiten' : 'Bücher'} pro Jahr">`;
+    for (let v = 0; v <= sk.max + 1e-9; v += sk.schritt) {
+      const yy = y(v).toFixed(1);
+      s += `<line class="grid" x1="${m.l}" x2="${W - m.r}" y1="${yy}" y2="${yy}"/>`;
+      s += `<text class="axis-text" x="${m.l - 8}" y="${yy}" text-anchor="end" dominant-baseline="middle">${zahl(v)}</text>`;
+    }
+    daten.forEach((d, i) => {
+      const v = werte[i];
+      const cx = m.l + band * i + band / 2;
+      const x = cx - bw / 2;
+      const top = y(v);
+      const h = m.t + ih - top;
+      const r = Math.min(4, h, bw / 2);
+      const istSel = hatAuswahl && Number(sel) === d.jahr;
+      const dim = hatAuswahl && !istSel;
+      // Balken: oben abgerundet, unten eckig
+      const pfad = h > 0
+        ? `M${x},${m.t + ih} V${top + r} Q${x},${top} ${x + r},${top} H${x + bw - r} Q${x + bw},${top} ${x + bw},${top + r} V${m.t + ih} Z`
+        : '';
+      const tip = `${d.jahr}: ${zahl(d.buecher)} ${d.buecher === 1 ? 'Buch' : 'Bücher'} · ${zahl(d.seiten)} Seiten · ${formatStunden(d.minuten)}`;
+      s += `<g class="grp" data-jahr="${d.jahr}" data-tip="${esc(tip)}">`;
+      s += `<rect class="hit" x="${m.l + band * i}" y="${m.t}" width="${band}" height="${ih + m.b}" tabindex="0" role="button" aria-label="${esc(tip)} – klicken zum Filtern"/>`;
+      if (pfad) s += `<path class="bar${dim ? ' dim' : ''}" d="${pfad}"/>`;
+      if (v > 0 && (zeigeAlleWerte || v === maxWert || istSel)) {
+        s += `<text class="val-text" x="${cx}" y="${top - 6}" text-anchor="middle">${zahl(v)}</text>`;
+      }
+      s += `<text class="yr-text${istSel ? ' sel' : ''}" x="${cx}" y="${H - 8}" text-anchor="middle">${band < 22 ? (i % 2 ? '' : "'" + String(d.jahr).slice(2)) : band < 40 ? "'" + String(d.jahr).slice(2) : d.jahr}</text>`;
+      s += '</g>';
+    });
+    s += '</svg><div class="tooltip hidden" id="tooltip"></div>';
+    chart.innerHTML = s;
+
+    const kAlle = berechneKennzahlen(alle, o);
+    const notizen = ['Klick auf einen Balken filtert nach diesem Jahr.'];
+    if (kAlle.ohneDatum) notizen.push(`${zahl(kAlle.ohneDatum)} ${kAlle.ohneDatum === 1 ? 'Buch' : 'Bücher'} ohne Lesedatum nicht enthalten.`);
+    if (o.mehrfach && alle.some(b => b.leseanzahl > 1)) notizen.push('Wiederholte Lesungen zählen im Jahr des (letzten) Lesedatums – Goodreads exportiert nur dieses.');
+    $('chart-hinweis').textContent = notizen.join(' ');
+
+    // --- Tabelle ---
+    const summe = daten.reduce((a, d) => ({ buecher: a.buecher + d.buecher, seiten: a.seiten + d.seiten, minuten: a.minuten + d.minuten, ohneSeiten: a.ohneSeiten + d.ohneSeiten }), { buecher: 0, seiten: 0, minuten: 0, ohneSeiten: 0 });
+    const hatOhneSeiten = summe.ohneSeiten > 0;
+    let t = `<thead><tr><th>Jahr</th><th>Bücher</th><th>Seiten</th><th>Stunden</th>${hatOhneSeiten ? '<th>davon ohne Seitenzahl</th>' : ''}</tr></thead><tbody>`;
+    for (const d of daten.slice().reverse()) {
+      const istSel = hatAuswahl && Number(sel) === d.jahr;
+      t += `<tr class="klickbar${istSel ? ' sel' : ''}" data-jahr="${d.jahr}"><td>${d.jahr}</td><td>${zahl(d.buecher)}</td><td>${zahl(d.seiten)}</td><td>${formatStunden(d.minuten)}</td>${hatOhneSeiten ? `<td>${d.ohneSeiten ? zahl(d.ohneSeiten) : '–'}</td>` : ''}</tr>`;
+    }
+    t += `</tbody><tfoot><tr><td>Summe (mit Datum)</td><td>${zahl(summe.buecher)}</td><td>${zahl(summe.seiten)}</td><td>${formatStunden(summe.minuten)}</td>${hatOhneSeiten ? `<td>${zahl(summe.ohneSeiten)}</td>` : ''}</tr></tfoot>`;
+    $('tbl-jahre').innerHTML = t;
+  }
+
+  /* ---------- Bücher ohne Seitenzahl ---------- */
+  function renderOhneSeiten(alle) {
+    const liste = alle.filter(b => b.seitenCSV == null)
+      .sort((a, b) => (a.seiten != null) - (b.seiten != null) || a.titel.localeCompare(b.titel, 'de'));
+    const card = $('ohne-seiten-card');
+    card.classList.toggle('hidden', !liste.length);
+    if (!liste.length) return;
+    const offen = liste.filter(b => b.seiten == null).length;
+    $('ohne-titel').textContent = `Bücher ohne Seitenzahl (${zahl(offen)} offen${liste.length > offen ? `, ${zahl(liste.length - offen)} nachgetragen` : ''})`;
+    $('ohne-liste').innerHTML = liste.map(b => `
+      <li>
+        <div><div class="titel">${esc(b.titel)}</div><div class="meta">${esc(b.autor)} · ${b.jahr ?? 'ohne Lesedatum'}${b.seitenManuell ? ' · <span class="status">✓ nachgetragen</span>' : ''}</div></div>
+        <form data-id="${esc(b.id)}">
+          <input type="number" name="seiten" min="1" max="20000" step="1" placeholder="Seiten" value="${b.seitenManuell ? b.seiten : ''}" aria-label="Seitenzahl für ${esc(b.titel)}">
+          <button type="submit">Speichern</button>
+          ${b.seitenManuell ? '<button type="button" data-aktion="loeschen">Entfernen</button>' : ''}
+        </form>
+      </li>`).join('');
+  }
+
+  function setzeOverride(id, seiten) {
+    if (seiten == null) delete state.overrides[id];
+    else state.overrides[id] = seiten;
+    ls.set(SPEICHER.seiten, JSON.stringify(state.overrides));
+    neuBerechnen();
+  }
+
+  /* ---------- Ereignisse ---------- */
+  $('datei').addEventListener('change', e => { liesDatei(e.target.files[0]); e.target.value = ''; });
+  const dz = $('dropzone');
+  ['dragenter', 'dragover'].forEach(t => dz.addEventListener(t, e => { e.preventDefault(); dz.classList.add('drag'); }));
+  ['dragleave', 'drop'].forEach(t => dz.addEventListener(t, e => { e.preventDefault(); dz.classList.remove('drag'); }));
+  dz.addEventListener('drop', e => liesDatei(e.dataTransfer.files[0]));
+  // Drop überall auf der Seite erlauben (lädt neue Datei)
+  window.addEventListener('dragover', e => e.preventDefault());
+  window.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files[0]) liesDatei(e.dataTransfer.files[0]); });
+
+  $('btn-neu').addEventListener('click', () => zeigeUpload(true));
+  $('btn-reset').addEventListener('click', () => {
+    if (!confirm('Gespeicherte CSV aus dem Browser löschen?')) return;
+    ls.del(SPEICHER.csv); ls.del(SPEICHER.dateiname);
+    if (Object.keys(state.overrides).length && confirm('Auch die manuell nachgetragenen Seitenzahlen löschen?')) {
+      ls.del(SPEICHER.seiten); state.overrides = {};
+    }
+    state.datensaetze = []; state.buecher = []; state.dateiname = '';
+    zeigeUpload(true);
+  });
+
+  $('sel-jahr').addEventListener('change', e => {
+    const v = e.target.value;
+    state.einst.jahr = v === 'alle' || v === 'ohne' ? v : Number(v);
+    speichereEinstellungen(); render();
+  });
+  $('chk-mehrfach').addEventListener('change', e => { state.einst.mehrfach = e.target.checked; speichereEinstellungen(); render(); });
+  $('inp-minuten').addEventListener('input', e => {
+    const v = parseFloat(String(e.target.value).replace(',', '.'));
+    if (v > 0 && v <= 30) { state.einst.minutenProSeite = v; speichereEinstellungen(); render(); }
+  });
+  document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => {
+    state.einst.diagramm = b.dataset.modus; speichereEinstellungen(); render();
+  }));
+
+  function waehleJahr(j) {
+    state.einst.jahr = state.einst.jahr === j ? 'alle' : j;
+    speichereEinstellungen(); render();
+  }
+  const chart = $('chart');
+  chart.addEventListener('click', e => { const g = e.target.closest('[data-jahr]'); if (g) waehleJahr(Number(g.dataset.jahr)); });
+  chart.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const g = e.target.closest('[data-jahr]'); if (g) { e.preventDefault(); waehleJahr(Number(g.dataset.jahr)); }
+  });
+  function zeigeTip(g) {
+    const tip = $('tooltip'); if (!tip) return;
+    const bar = g.querySelector('.bar') || g.querySelector('.hit');
+    const rc = chart.getBoundingClientRect(), rb = bar.getBoundingClientRect();
+    tip.textContent = g.dataset.tip;
+    tip.classList.remove('hidden');
+    const halb = tip.offsetWidth / 2;
+    const x = Math.min(Math.max(rb.left + rb.width / 2 - rc.left, halb), rc.width - halb);
+    tip.style.left = x + 'px';
+    tip.style.top = Math.max(rb.top - rc.top, 30) + 'px';
+  }
+  function versteckeTip() { const tip = $('tooltip'); if (tip) tip.classList.add('hidden'); }
+  chart.addEventListener('mouseover', e => { const g = e.target.closest('.grp'); if (g) zeigeTip(g); });
+  chart.addEventListener('mouseleave', versteckeTip);
+  chart.addEventListener('focusin', e => { const g = e.target.closest('.grp'); if (g) zeigeTip(g); });
+  chart.addEventListener('focusout', versteckeTip);
+  let resizeTimer, letzteBreite = 0;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      const w = chart.clientWidth;
+      if (state.buecher.length && w !== letzteBreite) { letzteBreite = w; renderJahre(state.buecher, opt()); }
+    }, 120);
+  });
+  $('tbl-jahre').addEventListener('click', e => { const tr = e.target.closest('tr[data-jahr]'); if (tr) waehleJahr(Number(tr.dataset.jahr)); });
+
+  $('ohne-liste').addEventListener('submit', e => {
+    e.preventDefault();
+    const f = e.target;
+    const seiten = parseSeiten(f.elements.seiten.value);
+    if (seiten == null) { f.elements.seiten.focus(); return; }
+    setzeOverride(f.dataset.id, seiten);
+  });
+  $('ohne-liste').addEventListener('click', e => {
+    const b = e.target.closest('[data-aktion=loeschen]');
+    if (b) setzeOverride(b.closest('form').dataset.id, null);
+  });
+
+  /* ---------- Start ---------- */
+  const gespeichert = ls.get(SPEICHER.csv);
+  if (gespeichert) ladeCSV(gespeichert, ls.get(SPEICHER.dateiname) || '', false);
+  else zeigeUpload(true);
+})();
+</script>
+</body>
+</html>
