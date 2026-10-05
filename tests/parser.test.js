@@ -16,7 +16,8 @@ vm.runInContext(block('konfig') + '\n' + block('kern') + `
   ;Object.assign(globalThis, { KONFIG, VERGLEICHE, parseCSV, zeilenZuDatensaetzen, normalisiereBuecher,
     normalisiereAlle, filterNachJahr, berechneKennzahlen, jahresAuswertung, formatStunden, formatTageStunden,
     waehleVergleiche, rundeVerhaeltnis, zahl, jahreszielStatus, zeitBisZumLesen, monatsMatrix, wochentage,
-    streaksUndPausen, tageZwischen, median });`, ctx);
+    streaksUndPausen, tageZwischen, median, topGruppen, seitenKlassen, erscheinungsStatistik, bewertungsVergleich,
+    sterneVerteilung, bestenliste, zahlVorzeichen });`, ctx);
 const K = ctx;
 
 let ok = 0, fail = 0;
@@ -150,6 +151,68 @@ test('aktueller Streak über den Jahreswechsel', () => {
 test('längste Pause: 499 Tage zwischen „Der leise Kartograf“ und „Das große Winterbuch“', () =>
   eq([st.pause.tage, st.pause.vorher.titel, st.pause.nachher.titel], [499, 'Der leise Kartograf', 'Das große Winterbuch']));
 test('seit dem letzten Buch: 63 Tage', () => eq([st.seitLetztem.tage, st.seitLetztem.buch.titel], [63, 'Mittsommer in Turku']));
+
+console.log('\nBücher, Autoren, Bewertungen');
+const top = K.topGruppen(buecher, b => b.autor ? [b.autor] : [], opt, 'buecher');
+test('Top-Autoren nach Büchern: Bauer 3, dann je 2', () => eq(top.liste.slice(0, 5).map(e => [e.name, e.buecher]),
+  [['Henrik Bauer', 3], ['Greta Holm', 2], ['Lena Fuchs', 2], ['Ruth Albers', 2], ['Tom Aalto', 2]]));
+test('Top-Autoren nach Seiten (Bücher ohne Seitenzahl zählen 0)', () => {
+  const t = K.topGruppen(buecher, b => [b.autor], opt, 'seiten');
+  eq(t.liste.slice(0, 3).map(e => [e.name, e.seiten]), [['Henrik Bauer', 3014], ['Ruth Albers', 957], ['Konstantin Vogel', 720]]);
+});
+test('Top 10 begrenzt, Gesamtzahl der Autoren bleibt bekannt', () => eq([top.liste.length, top.gesamt > 10], [10, true]));
+test('Mehrfach-Schalter: Bauer zählt 4 (Read Count 2 beim ersten Titel)', () => assert.strictEqual(
+  K.topGruppen(buecher, b => [b.autor], { ...opt, mehrfach: true }).liste[0].buecher, 4));
+
+const sk = K.seitenKlassen(buecher, opt);
+test('Seitenlängen: 3 / 9 / 4 / 4 Bücher, 2 ohne Seitenzahl', () => eq([sk.klassen.map(k => k.anzahl), sk.gesamt, sk.ohneSeiten], [[3, 9, 4, 4], 20, 2]));
+test('Seitenlängen: Prozentanteile 15 / 45 / 20 / 20', () => eq(sk.klassen.map(k => k.prozent), [15, 45, 20, 20]));
+test('Klassengrenzen: 199 | 200, 399 | 400, 600 | 601', () => {
+  const t = K.seitenKlassen([199, 200, 399, 400, 600, 601].map(n => ({ seiten: n, leseanzahl: 1, bewertung: 0 })), opt);
+  eq(t.klassen.map(k => k.anzahl), [1, 2, 2, 1]);
+});
+test('Ø Bewertung je Klasse + Hinweis bei < 3 Bewertungen', () => eq(
+  sk.klassen.map(k => [k.bewertet, k.durchschnitt && Math.round(k.durchschnitt * 1000) / 1000, k.wenigAussage]),
+  [[2, 4.5, true], [8, 3.875, false], [4, 4.25, false], [3, 4.333, false]]));
+
+const es = K.erscheinungsStatistik(buecher, opt, 2026);
+test('Erscheinungsjahr: 21 mit Jahr, 1 fehlt', () => eq([es.gesamt, es.fehlend, es.fehlendMitAusgabejahr], [21, 1, 0]));
+test('Klassiker (vor 1950): 1; Neuerscheinungen 2022–2026: 12', () => eq([es.klassiker, es.neu, es.neuVon], [1, 12, 2022]));
+test('ältestes / neuestes Buch', () => eq([es.aeltestes.titel, es.aeltestes.erscheinungsjahr, es.neuestes.titel], ['Krieg der Uhren', 1938, 'Mittsommer in Turku']));
+test('Jahrzehnte 1930er–2020er, Lücken mit 0', () => eq(es.dekaden.map(d => [d.label, d.anzahl]),
+  [['1930er', 1], ['1940er', 0], ['1950er', 0], ['1960er', 1], ['1970er', 0], ['1980er', 0], ['1990er', 0], ['2000er', 0], ['2010er', 3], ['2020er', 16]]));
+test('Jahr vor 1900 → eigene Klasse; Ausgabejahr allein zählt nicht', () => {
+  const t = K.erscheinungsStatistik([
+    { erscheinungsjahr: 1605, erscheinungsjahrQuelle: 'original', leseanzahl: 1, titel: 'A' },
+    { erscheinungsjahr: 2019, erscheinungsjahrQuelle: 'ausgabe', leseanzahl: 1, titel: 'B' }], opt, 2026);
+  eq([t.dekaden.map(d => d.label), t.gesamt, t.fehlend, t.fehlendMitAusgabejahr], [['vor 1900'], 1, 1, 1]);
+});
+
+const verl = K.topGruppen(buecher, b => b.verlag ? [b.verlag] : [], opt);
+test('Verlage: 4 Verlage mit je 4 Büchern vorn, 1 Buch ohne Verlag ausgewiesen', () => eq(
+  [verl.liste.slice(0, 4).map(e => e.buecher), verl.ohne, verl.liste[4].name], [[4, 4, 4, 4], 1, 'Baltica']));
+const reg = K.topGruppen(buecher, b => b.regale, opt);
+test('Regale: Standardregale herausgefiltert, roman 7', () => eq([reg.liste[0].name, reg.liste[0].buecher, reg.liste.some(e => ['read', 'to-read'].includes(e.name))], ['roman', 7, false]));
+test('Regale: 2 Bücher ohne eigenes Regal', () => assert.strictEqual(reg.ohne, 2));
+
+const bv = K.bewertungsVergleich(buecher);
+test('Bewertungsvergleich: 19 Bücher, Ø Abweichung +0,03 → „ähnlich“', () => eq([bv.anzahl, bv.mittel.toFixed(3), bv.urteil], [19, '0.028', 'aehnlich']));
+test('5 am deutlichsten besser bewertet', () => eq(bv.besser.map(x => x.buch.titel),
+  ['Der Kartograf und das Meer (Kartograf-Reihe, #2)', 'Salz, Stein und "Sterne"', 'Der Sturm von 1872', 'Kleine Theorie des Regens', 'Die Bienen von Saarow']));
+test('5 am deutlichsten schlechter bewertet', () => eq(bv.schlechter.map(x => x.buch.titel),
+  ['Kupfer & Kreide', 'Die Wellen von Usedom', 'Die Uhrmacherin von Lindau', 'Fernweh in Moll', 'Das Archiv der verlorenen Sommer']));
+test('streng / mild ab ±0,25', () => {
+  const mk = (e, d) => [{ bewertung: e, durchschnitt: d, titel: 'x' }];
+  eq([K.bewertungsVergleich(mk(3, 4)).urteil, K.bewertungsVergleich(mk(5, 4)).urteil, K.bewertungsVergleich(mk(4, 4.2)).urteil], ['streng', 'mild', 'aehnlich']);
+});
+test('Bücher ohne Bewertung oder ohne Goodreads-Schnitt bleiben draußen', () => eq(
+  K.bewertungsVergleich([{ bewertung: 0, durchschnitt: 4, titel: 'a' }, { bewertung: 4, durchschnitt: 0, titel: 'b' }, { bewertung: 4, durchschnitt: null, titel: 'c' }]).anzahl, 0));
+test('Sterne-Verteilung: 0 / 1 / 4 / 9 / 5, 3 unbewertet', () => eq(
+  [K.sterneVerteilung(buecher).zaehler, K.sterneVerteilung(buecher).unbewertet], [[0, 1, 4, 9, 5], 3]));
+test('Bestenliste nach Jahr, neuestes zuerst', () => eq(K.bestenliste(buecher).map(g => [g.jahr, g.buecher.length]), [[2026, 1], [2025, 2], [2024, 1], [2023, 1]]));
+test('Bestenliste: 5 Sterne ohne Lesedatum landen am Ende', () => eq(
+  K.bestenliste([{ bewertung: 5, jahr: null, datum: null, titel: 'a' }, { bewertung: 5, jahr: 2020, datum: '2020-01-01', titel: 'b' }]).map(g => g.jahr), [2020, 'ohne']));
+test('Vorzeichen-Format: +0,8 / −1,1 / 0', () => eq([K.zahlVorzeichen(0.8), K.zahlVorzeichen(-1.1), K.zahlVorzeichen(0)], ['+0,8', '−1,1', '0']));
 
 console.log('\nFormatierung');
 test('deutsche Tausenderpunkte', () => assert.strictEqual(K.zahl(1234567), '1.234.567'));

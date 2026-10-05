@@ -275,6 +275,15 @@ label.inline { display: inline-flex; align-items: center; gap: 8px; font-size: .
 .viz .hm-zelle-grp:focus { outline: none; }
 .legende { display: flex; align-items: center; gap: 4px; font-size: .78rem; color: var(--text-3); margin-top: 8px; }
 .legende i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
+/* Horizontale Balken */
+.viz .h-label { fill: var(--text-2); font-size: 13px; }
+.viz .h-wert { fill: var(--text-2); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.viz .h-spur { fill: var(--surface-2); }
+.zeitraum-zeile { margin: 0 0 12px; font-size: .88rem; color: var(--text-3); }
+.zeitraum-zeile strong { color: var(--text-2); }
+.jahr-gruppe { margin-bottom: 14px; }
+.jahr-gruppe h3 { font-size: .95rem; margin: 0 0 6px; color: var(--text-2); }
+td.wenig { color: var(--warn-text); font-size: .82rem; white-space: normal; }
 /* Listen */
 .zwei-spalten { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 16px; }
 .zwei-spalten h3 { font-size: .95rem; margin: 0 0 8px; color: var(--text-2); }
@@ -363,7 +372,7 @@ footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top
       <section class="card">
         <div class="chart-head">
           <h2>Pro Jahr</h2>
-          <div class="seg" role="group" aria-label="Diagramm zeigt">
+          <div class="seg" id="seg-diagramm" role="group" aria-label="Diagramm zeigt">
             <button type="button" data-modus="buecher" aria-pressed="true">Bücher</button>
             <button type="button" data-modus="seiten" aria-pressed="false">Seiten</button>
           </div>
@@ -412,12 +421,80 @@ footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top
 
     <!-- Tab: Autoren & Bücher (Stufe 4) -->
     <div class="tab-panel" role="tabpanel" data-panel="autoren">
-      <section class="card"><p class="muted">Top-Autoren, Seitenlängen, Erscheinungsjahre, Verlage und Regale folgen in Stufe 4.</p></section>
+      <p class="zeitraum-zeile"></p>
+      <section class="card">
+        <div class="chart-head">
+          <h2>Top-Autoren</h2>
+          <div class="seg" id="seg-autoren" role="group" aria-label="Autoren sortieren nach">
+            <button type="button" data-aut="buecher" aria-pressed="true">Bücher</button>
+            <button type="button" data-aut="seiten" aria-pressed="false">Seiten</button>
+          </div>
+        </div>
+        <p class="erklaerung">Bei mehreren Autoren zählt der Hauptautor aus der Spalte <em>Author</em>.</p>
+        <div class="viz" id="autoren"></div>
+        <p class="chart-hinweis" id="autoren-hinweis"></p>
+      </section>
+
+      <section class="card">
+        <h2>Seitenlängen</h2>
+        <div class="viz" id="seitenlaenge"></div>
+        <div class="tbl-wrap"><table id="tbl-seitenlaenge"></table></div>
+        <p class="chart-hinweis" id="seitenlaenge-hinweis"></p>
+      </section>
+
+      <section class="card">
+        <h2>Erscheinungsjahr</h2>
+        <p class="erklaerung">Grundlage ist <em>Original Publication Year</em>, also das Jahr der Erstveröffentlichung, nicht das der Ausgabe.</p>
+        <div class="kpis" id="erscheinung-kpis"></div>
+        <div class="viz" id="erscheinung" style="margin-top:16px"></div>
+        <p class="chart-hinweis" id="erscheinung-hinweis"></p>
+      </section>
+
+      <section class="card">
+        <h2>Verlage</h2>
+        <div class="viz" id="verlage"></div>
+        <p class="chart-hinweis" id="verlage-hinweis"></p>
+      </section>
+
+      <section class="card">
+        <h2>Regale</h2>
+        <p class="erklaerung"><strong>Hinweis:</strong> Das sind nur deine eigenen Regale (Spalte <em>Bookshelves</em>) und keine echten Genres. <em>read</em>, <em>to-read</em> und <em>currently-reading</em> sind herausgefiltert.</p>
+        <div class="viz" id="regale"></div>
+        <p class="chart-hinweis" id="regale-hinweis"></p>
+      </section>
     </div>
 
     <!-- Tab: Bewertungen (Stufe 4) -->
     <div class="tab-panel" role="tabpanel" data-panel="bewertungen">
-      <section class="card"><p class="muted">Bewertungsvergleich, Sterne-Verteilung und Bestenliste folgen in Stufe 4.</p></section>
+      <p class="zeitraum-zeile"></p>
+      <section class="card">
+        <h2>Meine Bewertung vs. Goodreads-Durchschnitt</h2>
+        <p class="erklaerung">Nur Bücher, die du selbst bewertet hast (mindestens 1 Stern). Abweichung = deine Sterne minus Goodreads-Durchschnitt.</p>
+        <div class="kpis" id="bw-kpis"></div>
+        <div class="zwei-spalten">
+          <div><h3>Deutlich besser als der Durchschnitt</h3><ul class="buchliste" id="bw-besser"></ul></div>
+          <div><h3>Deutlich schlechter als der Durchschnitt</h3><ul class="buchliste" id="bw-schlechter"></ul></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Sterne-Verteilung</h2>
+        <div class="viz" id="sterne"></div>
+        <p class="chart-hinweis" id="sterne-hinweis"></p>
+      </section>
+
+      <section class="card">
+        <h2>Länge und Bewertung</h2>
+        <p class="erklaerung">Durchschnittliche Bewertung je Seitenlängen-Klasse – gefallen dir dicke Bücher besser?</p>
+        <div class="viz" id="laenge-bewertung"></div>
+        <div class="tbl-wrap"><table id="tbl-laenge-bewertung"></table></div>
+        <p class="chart-hinweis" id="laenge-bewertung-hinweis"></p>
+      </section>
+
+      <section class="card">
+        <h2>Bestenliste: meine 5-Sterne-Bücher</h2>
+        <div id="bestenliste"></div>
+      </section>
     </div>
 
     <!-- Tab: Spielerisches (Stufe 5) -->
@@ -764,11 +841,152 @@ function streaksUndPausen(buecher, heute) {
   };
 }
 
+/* ---------- Bücher, Autoren, Bewertungen ---------- */
+
+/** Gruppiert nach Schlüssel (Autor, Verlag, Regal …). schluessel(b) liefert eine Liste;
+    eine leere Liste = Wert fehlt → wird als "ohne" ausgewiesen und nicht mitgezählt. */
+function topGruppen(buecher, schluessel, opt, modus = 'buecher', n = 10) {
+  const map = new Map();
+  let ohne = 0;
+  for (const b of buecher) {
+    const w = gewicht(b, opt);
+    const keys = schluessel(b);
+    if (!keys.length) { ohne += w; continue; }
+    for (const k of keys) {
+      const e = map.get(k) || { name: k, buecher: 0, seiten: 0 };
+      e.buecher += w;
+      e.seiten += (b.seiten ?? 0) * w;
+      map.set(k, e);
+    }
+  }
+  const alle = [...map.values()].sort((a, b) =>
+    b[modus] - a[modus] || b.buecher - a.buecher || a.name.localeCompare(b.name, 'de'));
+  return {
+    liste: alle.slice(0, n),
+    gesamt: alle.length,
+    ohne,
+    ohneSeiten: buecher.filter(b => b.seiten == null).length,
+  };
+}
+
+const SEITENKLASSEN = [
+  { key: 'u200', label: 'unter 200', kurz: '<200', passt: s => s < 200 },
+  { key: '200', label: '200–399', kurz: '200+', passt: s => s >= 200 && s < 400 },
+  { key: '400', label: '400–600', kurz: '400+', passt: s => s >= 400 && s <= 600 },
+  { key: '600', label: 'über 600', kurz: '>600', passt: s => s > 600 },
+];
+
+/** Verteilung nach Seitenlänge inkl. Ø Bewertung je Klasse (Bücher ohne Seitenzahl bleiben draußen) */
+function seitenKlassen(buecher, opt, minBewertet = 3) {
+  const klassen = SEITENKLASSEN.map(k => ({ key: k.key, label: k.label, kurz: k.kurz, passt: k.passt, anzahl: 0, buecher: [] }));
+  let ohneSeiten = 0;
+  for (const b of buecher) {
+    if (b.seiten == null) { ohneSeiten += gewicht(b, opt); continue; }
+    const k = klassen.find(x => x.passt(b.seiten));
+    k.anzahl += gewicht(b, opt);
+    k.buecher.push(b);
+  }
+  const gesamt = klassen.reduce((a, k) => a + k.anzahl, 0);
+  for (const k of klassen) {
+    k.prozent = gesamt ? k.anzahl / gesamt * 100 : 0;
+    const bewertet = k.buecher.filter(b => b.bewertung > 0);
+    k.bewertet = bewertet.length;
+    k.durchschnitt = bewertet.length ? bewertet.reduce((a, b) => a + b.bewertung, 0) / bewertet.length : null;
+    k.wenigAussage = bewertet.length < minBewertet;
+  }
+  return { klassen, gesamt, ohneSeiten };
+}
+
+/** Erscheinungsjahr: nur "Original Publication Year" zählt; fehlende Werte werden ausgewiesen.
+    Klassiker = vor 1950, Neuerscheinung = die letzten 5 Jahre (heuteJahr-4 … heuteJahr). */
+function erscheinungsStatistik(buecher, opt, heuteJahr) {
+  const mit = buecher.filter(b => b.erscheinungsjahrQuelle === 'original');
+  let gesamt = 0, klassiker = 0, neu = 0;
+  const dek = new Map();
+  for (const b of mit) {
+    const w = gewicht(b, opt), y = b.erscheinungsjahr;
+    gesamt += w;
+    if (y < 1950) klassiker += w;
+    if (y >= heuteJahr - 4) neu += w;
+    const key = y < 1900 ? -1 : Math.floor(y / 10) * 10;
+    dek.set(key, (dek.get(key) || 0) + w);
+  }
+  const dekaden = [];
+  if (dek.has(-1)) dekaden.push({ key: -1, label: 'vor 1900', kurz: '<1900', anzahl: dek.get(-1) });
+  const keys = [...dek.keys()].filter(k => k >= 1900);
+  if (keys.length) {
+    for (let d = Math.min(...keys); d <= Math.max(...keys); d += 10) {
+      dekaden.push({ key: d, label: d + 'er', kurz: "'" + String(d).slice(2) + 'er', anzahl: dek.get(d) || 0 });
+    }
+  }
+  const sortiert = mit.slice().sort((a, b) => a.erscheinungsjahr - b.erscheinungsjahr || a.titel.localeCompare(b.titel, 'de'));
+  const fehlend = buecher.filter(b => b.erscheinungsjahrQuelle !== 'original');
+  return {
+    gesamt, dekaden,
+    klassiker, klassikerProzent: gesamt ? klassiker / gesamt * 100 : 0,
+    neu, neuVon: heuteJahr - 4, neuProzent: gesamt ? neu / gesamt * 100 : 0,
+    aeltestes: sortiert[0] || null,
+    neuestes: sortiert[sortiert.length - 1] || null,
+    fehlend: fehlend.reduce((a, b) => a + gewicht(b, opt), 0),
+    fehlendMitAusgabejahr: fehlend.filter(b => b.erscheinungsjahrQuelle === 'ausgabe').reduce((a, b) => a + gewicht(b, opt), 0),
+  };
+}
+
+/** Eigene Bewertung vs. Goodreads-Durchschnitt (nur Bücher mit eigener Bewertung > 0).
+    schwelle: ab dieser mittleren Abweichung gilt man als "streng" bzw. "mild". */
+function bewertungsVergleich(buecher, schwelle = 0.25) {
+  const l = buecher.filter(b => b.bewertung > 0 && b.durchschnitt > 0)
+    .map(b => ({ buch: b, diff: b.bewertung - b.durchschnitt }));
+  const n = l.length;
+  const summe = f => l.reduce((a, x) => a + f(x), 0);
+  const mittel = n ? summe(x => x.diff) / n : null;
+  const nachTitel = (a, b) => a.buch.titel.localeCompare(b.buch.titel, 'de');
+  return {
+    anzahl: n,
+    meine: n ? summe(x => x.buch.bewertung) / n : null,
+    goodreads: n ? summe(x => x.buch.durchschnitt) / n : null,
+    mittel,
+    urteil: mittel == null ? null : mittel <= -schwelle ? 'streng' : mittel >= schwelle ? 'mild' : 'aehnlich',
+    besser: l.filter(x => x.diff > 0).sort((a, b) => b.diff - a.diff || nachTitel(a, b)).slice(0, 5),
+    schlechter: l.filter(x => x.diff < 0).sort((a, b) => a.diff - b.diff || nachTitel(a, b)).slice(0, 5),
+  };
+}
+
+/** Sterne-Verteilung 1–5 (jeder Titel einmal) */
+function sterneVerteilung(buecher) {
+  const zaehler = [0, 0, 0, 0, 0];
+  let unbewertet = 0;
+  for (const b of buecher) {
+    if (b.bewertung > 0) zaehler[b.bewertung - 1]++; else unbewertet++;
+  }
+  return { zaehler, unbewertet, bewertet: zaehler.reduce((a, b) => a + b, 0) };
+}
+
+/** 5-Sterne-Bücher gruppiert nach Lesejahr (neuestes zuerst, "ohne Lesedatum" zuletzt) */
+function bestenliste(buecher) {
+  const map = new Map();
+  for (const b of buecher) {
+    if (b.bewertung !== 5) continue;
+    const k = b.jahr ?? 'ohne';
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(b);
+  }
+  return [...map.entries()]
+    .sort(([a], [b]) => a === 'ohne' ? 1 : b === 'ohne' ? -1 : b - a)
+    .map(([jahr, liste]) => ({
+      jahr,
+      buecher: liste.sort((a, b) => (a.datum || '').localeCompare(b.datum || '') || a.titel.localeCompare(b.titel, 'de')),
+    }));
+}
+
 /* ---------- Formatierung (deutsch) ---------- */
 const NF0 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
 const NF1 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 });
+const NFV = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1, signDisplay: 'exceptZero' });
 function zahl(n) { return NF0.format(n); }
 function zahl1(n) { return NF1.format(n); }
+/** mit Vorzeichen: +0,8 / −1,2 */
+function zahlVorzeichen(n) { return NFV.format(n).replace('-', '−'); }
 
 /** Minuten → "1.234 Std." */
 function formatStunden(minuten) {
@@ -864,7 +1082,7 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     speicherWarnung: false,
     overrides: ladeJSON(SPEICHER.seiten, {}),
     einst: Object.assign(
-      { jahr: 'alle', mehrfach: false, minutenProSeite: KONFIG.minutenProSeite, diagramm: 'buecher', tab: 'uebersicht', jahresziel: KONFIG.jahresziel },
+      { jahr: 'alle', mehrfach: false, minutenProSeite: KONFIG.minutenProSeite, diagramm: 'buecher', autorenModus: 'buecher', tab: 'uebersicht', jahresziel: KONFIG.jahresziel },
       ladeJSON(SPEICHER.einstellungen, {})
     ),
   };
@@ -940,6 +1158,8 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     renderJahresziel(alle, o);
     renderJahre(alle, o);
     renderLeseverhalten(alle, gefiltert, o);
+    renderBuecherAutoren(gefiltert, o);
+    renderBewertungen(gefiltert, o);
     renderOhneSeiten(alle);
   }
 
@@ -962,7 +1182,9 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     if (document.activeElement !== $('inp-minuten')) $('inp-minuten').value = String(state.einst.minutenProSeite);
     if (document.activeElement !== $('inp-ziel')) $('inp-ziel').value = String(state.einst.jahresziel);
     $('dateiinfo').textContent = state.dateiname ? 'Datei: ' + state.dateiname : '';
-    document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.modus === state.einst.diagramm)));
+    document.querySelectorAll('#seg-diagramm button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.modus === state.einst.diagramm)));
+    document.querySelectorAll('#seg-autoren button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.aut === state.einst.autorenModus)));
+    document.querySelectorAll('.zeitraum-zeile').forEach(p => { p.innerHTML = 'Auswertung für: <strong>' + esc(zeitraumText(state.einst.jahr)) + '</strong> (Filter oben)'; });
   }
 
   function renderHinweise(kAlle) {
@@ -1029,7 +1251,7 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     const roh = max / 4;
     const p = Math.pow(10, Math.floor(Math.log10(roh)));
     const f = roh / p;
-    const schritt = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+    const schritt = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 3 ? 3 : f <= 5 ? 5 : 10) * p;
     const s = Math.max(schritt, max < 4 ? 1 : schritt);
     return { max: Math.ceil(max / s) * s, schritt: s };
   }
@@ -1089,18 +1311,23 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
 
   /* ---------- Generisches Balkendiagramm (SVG) ---------- */
   // items: [{label, kurz?, wert, tip, jahr?, sel?, dim?}] – mit jahr wird der Balken klickbar (Filter)
-  function balkenSVG(el, items, { aria = 'Balkendiagramm', klickText = '', hoehe } = {}) {
+  function balkenSVG(el, items, { aria = 'Balkendiagramm', klickText = '', hoehe, skala, fmt = zahl } = {}) {
     const W = Math.max(260, Math.round(el.clientWidth || 600));
     const H = hoehe || (W < 500 ? 220 : 260);
     const m = { l: 44, r: 8, t: 22, b: 30 };
     const iw = W - m.l - m.r, ih = H - m.t - m.b;
     const werte = items.map(d => d.wert);
     const maxWert = Math.max(0, ...werte);
-    const sk = schoeneSkala(maxWert);
+    const sk = skala || schoeneSkala(maxWert);
     const band = iw / items.length;
     const bw = Math.min(28, band * 0.6);
     const y = v => m.t + ih - (v / sk.max) * ih;
     const zeigeAlleWerte = band >= 34;
+    // Beschriftung: ganze Texte, wenn sie passen; sonst Kurzform; sonst nur jede n-te Beschriftung
+    const textBreite = t => t.length * 6.6 + 8;
+    const voll = items.every(d => band >= textBreite(d.label));
+    const gewaehlt = items.map(d => voll ? d.label : (d.kurz || d.label));
+    const schritt = Math.max(1, Math.ceil(Math.max(...gewaehlt.map(textBreite)) / band));
     let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(aria)}">`;
     for (let v = 0; v <= sk.max + 1e-9; v += sk.schritt) {
       const yy = y(v).toFixed(1);
@@ -1121,14 +1348,173 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
       s += `<rect class="hit${klickbar ? ' klick' : ''}" x="${m.l + band * i}" y="${m.t}" width="${band}" height="${ih + m.b}" tabindex="0"${klickbar ? ' role="button"' : ''} aria-label="${esc(d.tip + (klickbar ? klickText : ''))}"/>`;
       if (pfad) s += `<path class="bar${d.dim ? ' dim' : ''}" d="${pfad}"/>`;
       if (v > 0 && (zeigeAlleWerte || v === maxWert || d.sel)) {
-        s += `<text class="val-text" x="${cx}" y="${top - 6}" text-anchor="middle">${zahl(v)}</text>`;
+        s += `<text class="val-text" x="${cx}" y="${top - 6}" text-anchor="middle">${fmt(v)}</text>`;
       }
-      const lbl = band < 22 ? (i % 2 ? '' : (d.kurz || d.label)) : band < 40 ? (d.kurz || d.label) : d.label;
+      const lbl = i % schritt === 0 ? gewaehlt[i] : '';
       s += `<text class="yr-text${d.sel ? ' sel' : ''}" x="${cx}" y="${H - 8}" text-anchor="middle">${esc(lbl)}</text>`;
       s += '</g>';
     });
     s += '</svg><div class="tooltip hidden"></div>';
     el.innerHTML = s;
+  }
+
+  /* Horizontale Balken: Beschriftung über dem Balken, Wert rechts – funktioniert auch auf schmalen Bildschirmen.
+     items: [{label, wert, valText?, tip}] */
+  function hBalkenSVG(el, items, { aria = 'Balkendiagramm' } = {}) {
+    const W = Math.max(240, Math.round(el.clientWidth || 600));
+    const zeile = 40, bh = 10;
+    const H = items.length * zeile;
+    const max = Math.max(1, ...items.map(d => d.wert));
+    const maxZeichen = Math.max(8, Math.floor((W - 70) / 7));
+    let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(aria)}">`;
+    items.forEach((d, i) => {
+      const y0 = i * zeile, by = y0 + 22;
+      const w = Math.max(d.wert > 0 ? 3 : 0, d.wert / max * W);
+      const r = Math.min(4, bh / 2, w);
+      const lbl = d.label.length > maxZeichen ? d.label.slice(0, maxZeichen - 1) + '…' : d.label;
+      s += `<g class="grp" data-tip="${esc(d.tip)}">`;
+      s += `<rect class="hit" x="0" y="${y0}" width="${W}" height="${zeile}" tabindex="0" aria-label="${esc(d.tip)}"/>`;
+      s += `<rect class="h-spur" x="0" y="${by}" width="${W}" height="${bh}" rx="${bh / 2}"/>`;
+      s += `<text class="h-label" x="0" y="${y0 + 14}">${esc(lbl)}</text>`;
+      s += `<text class="h-wert" x="${W}" y="${y0 + 14}" text-anchor="end">${esc(d.valText ?? zahl(d.wert))}</text>`;
+      if (w > 0) s += `<path class="bar" d="M0,${by} H${w - r} Q${w},${by} ${w},${by + r} V${by + bh - r} Q${w},${by + bh} ${w - r},${by + bh} H0 Z"/>`;
+      s += '</g>';
+    });
+    s += '</svg><div class="tooltip hidden"></div>';
+    el.innerHTML = s;
+  }
+
+  function leerText(el, text) { el.innerHTML = `<p class="muted">${text}</p>`; }
+  const ohneText = (n, was) => n ? `${zahl(n)} ${buecherWort(n)} ${was} nicht mitgezählt.` : '';
+  const prozentText = p => zahl(Math.round(p)) + ' %';
+
+  /* ---------- Bücher & Autoren ---------- */
+  function renderBuecherAutoren(g, o) {
+    const leer = '<p class="muted">Keine Bücher im gewählten Zeitraum.</p>';
+    // Top-Autoren
+    const modus = state.einst.autorenModus;
+    const a = topGruppen(g, b => b.autor ? [b.autor] : [], o, modus);
+    if (a.liste.length) {
+      hBalkenSVG($('autoren'), a.liste.map(e => ({
+        label: e.name, wert: e[modus],
+        valText: modus === 'seiten' ? `${zahl(e.seiten)} Seiten` : `${zahl(e.buecher)} ${buecherWort(e.buecher)}`,
+        tip: `${e.name}: ${zahl(e.buecher)} ${buecherWort(e.buecher)} · ${zahl(e.seiten)} Seiten`,
+      })), { aria: `Top-Autoren nach ${modus === 'seiten' ? 'Seiten' : 'Büchern'}` });
+    } else $('autoren').innerHTML = leer;
+    $('autoren-hinweis').textContent = [
+      a.gesamt > a.liste.length ? `Top ${a.liste.length} von ${zahl(a.gesamt)} Autoren.` : '',
+      modus === 'seiten' && a.ohneSeiten ? `${zahl(a.ohneSeiten)} ${buecherWort(a.ohneSeiten)} ohne Seitenzahl zählen 0 Seiten.` : '',
+      ohneText(a.ohne, 'ohne Autor'),
+    ].filter(Boolean).join(' ');
+
+    // Seitenlängen
+    const sk = seitenKlassen(g, o);
+    if (sk.gesamt) {
+      balkenSVG($('seitenlaenge'), sk.klassen.map(k => ({
+        label: k.label, kurz: k.kurz, wert: k.anzahl,
+        tip: `${k.label} Seiten: ${zahl(k.anzahl)} ${buecherWort(k.anzahl)} (${prozentText(k.prozent)})`,
+      })), { aria: 'Histogramm: Bücher nach Seitenlänge', hoehe: 220 });
+      $('tbl-seitenlaenge').innerHTML = '<thead><tr><th>Seiten</th><th>Bücher</th><th>Anteil</th></tr></thead><tbody>' +
+        sk.klassen.map(k => `<tr><td>${k.label}</td><td>${zahl(k.anzahl)}</td><td>${prozentText(k.prozent)}</td></tr>`).join('') + '</tbody>';
+    } else { $('seitenlaenge').innerHTML = leer; $('tbl-seitenlaenge').innerHTML = ''; }
+    $('seitenlaenge-hinweis').textContent = ohneText(sk.ohneSeiten, 'ohne Seitenzahl');
+
+    // Erscheinungsjahr
+    const e = erscheinungsStatistik(g, o, Number(isoDatum(new Date()).slice(0, 4)));
+    if (e.gesamt) {
+      $('erscheinung-kpis').innerHTML = [
+        kpi('Klassiker (vor 1950)', `${zahl(e.klassiker)} ${buecherWort(e.klassiker)}`, prozentText(e.klassikerProzent) + ' der Bücher mit Jahr'),
+        kpi(`Neuerscheinungen (${e.neuVon}–heute)`, `${zahl(e.neu)} ${buecherWort(e.neu)}`, prozentText(e.neuProzent) + ' der Bücher mit Jahr'),
+        kpi('Ältestes Buch', e.aeltestes.erscheinungsjahr, `${esc(e.aeltestes.titel)} · ${esc(e.aeltestes.autor)}`, 'textsub'),
+        kpi('Neuestes Buch', e.neuestes.erscheinungsjahr, `${esc(e.neuestes.titel)} · ${esc(e.neuestes.autor)}`, 'textsub'),
+      ].join('');
+      balkenSVG($('erscheinung'), e.dekaden.map(d => ({
+        label: d.label, kurz: d.kurz, wert: d.anzahl,
+        tip: `${d.label}: ${zahl(d.anzahl)} ${buecherWort(d.anzahl)}`,
+      })), { aria: 'Balkendiagramm: Bücher nach Erscheinungsjahrzehnt', hoehe: 220 });
+    } else {
+      $('erscheinung-kpis').innerHTML = '';
+      $('erscheinung').innerHTML = g.length ? '<p class="muted">Keine Erscheinungsjahre in den Daten.</p>' : leer;
+    }
+    $('erscheinung-hinweis').textContent = e.fehlend
+      ? `${ohneText(e.fehlend, 'ohne Original Publication Year')}${e.fehlendMitAusgabejahr ? ` (bei ${zahl(e.fehlendMitAusgabejahr)} davon steht nur das Jahr der Ausgabe in der CSV.)` : ''}` : '';
+
+    // Verlage
+    const v = topGruppen(g, b => b.verlag ? [b.verlag] : [], o);
+    if (v.liste.length) {
+      hBalkenSVG($('verlage'), v.liste.map(x => ({
+        label: x.name, wert: x.buecher, valText: `${zahl(x.buecher)} ${buecherWort(x.buecher)}`,
+        tip: `${x.name}: ${zahl(x.buecher)} ${buecherWort(x.buecher)} · ${zahl(x.seiten)} Seiten`,
+      })), { aria: 'Top-Verlage' });
+    } else $('verlage').innerHTML = leer;
+    $('verlage-hinweis').textContent = [
+      v.gesamt > v.liste.length ? `Top ${v.liste.length} von ${zahl(v.gesamt)} Verlagen.` : '',
+      ohneText(v.ohne, 'ohne Verlag'),
+    ].filter(Boolean).join(' ');
+
+    // Regale
+    const r = topGruppen(g, b => b.regale, o);
+    if (r.liste.length) {
+      hBalkenSVG($('regale'), r.liste.map(x => ({
+        label: x.name, wert: x.buecher, valText: `${zahl(x.buecher)} ${buecherWort(x.buecher)}`,
+        tip: `Regal „${x.name}“: ${zahl(x.buecher)} ${buecherWort(x.buecher)}`,
+      })), { aria: 'Bücher je eigenem Regal' });
+    } else $('regale').innerHTML = g.length ? '<p class="muted">Keine eigenen Regale in den Daten.</p>' : leer;
+    $('regale-hinweis').textContent = [
+      r.gesamt > r.liste.length ? `Top ${r.liste.length} von ${zahl(r.gesamt)} Regalen. Ein Buch kann in mehreren Regalen stehen.` : (r.liste.length ? 'Ein Buch kann in mehreren Regalen stehen.' : ''),
+      ohneText(r.ohne, 'in keinem eigenen Regal'),
+    ].filter(Boolean).join(' ');
+  }
+
+  /* ---------- Bewertungen ---------- */
+  function renderBewertungen(g, o) {
+    // Vergleich mit Goodreads
+    const v = bewertungsVergleich(g);
+    const urteilText = { streng: 'strenger als der Durchschnitt', mild: 'milder als der Durchschnitt', aehnlich: 'etwa wie der Durchschnitt' };
+    if (v.anzahl) {
+      $('bw-kpis').innerHTML = [
+        kpi('Ø deine Bewertung', ca1(v.meine) + ' ★', `aus ${zahl(v.anzahl)} ${v.anzahl === 1 ? 'Bewertung' : 'Bewertungen'}`),
+        kpi('Ø Goodreads (dieselben Bücher)', ca1(v.goodreads) + ' ★', ''),
+        kpi('Ø Abweichung', `${zahlVorzeichen(Math.round(v.mittel * 10) / 10)} ★`, `Du bewertest ${urteilText[v.urteil]} (ab ±0,25 gilt „streng“ bzw. „mild“).`, 'hero'),
+      ].join('');
+    } else {
+      $('bw-kpis').innerHTML = '<p class="muted">Keine bewerteten Bücher mit Goodreads-Durchschnitt im gewählten Zeitraum.</p>';
+    }
+    const li = x => `<li><span class="wert">${zahlVorzeichen(Math.round(x.diff * 10) / 10)} ★</span><span class="titel">${esc(x.buch.titel)}</span><span class="meta">${esc(x.buch.autor)} · du ${x.buch.bewertung} ★, Goodreads ${zahl1(Math.round(x.buch.durchschnitt * 100) / 100)} ★</span></li>`;
+    $('bw-besser').innerHTML = v.besser.map(li).join('') || '<li class="muted">Keine</li>';
+    $('bw-schlechter').innerHTML = v.schlechter.map(li).join('') || '<li class="muted">Keine</li>';
+
+    // Sterne-Verteilung
+    const sv = sterneVerteilung(g);
+    if (sv.bewertet) {
+      balkenSVG($('sterne'), sv.zaehler.map((n, i) => ({
+        label: `${i + 1} ★`, wert: n,
+        tip: `${i + 1} ${i === 0 ? 'Stern' : 'Sterne'}: ${zahl(n)} ${buecherWort(n)} (${prozentText(n / sv.bewertet * 100)})`,
+      })), { aria: 'Balkendiagramm: Sterne-Verteilung', hoehe: 220 });
+    } else leerText($('sterne'), 'Keine bewerteten Bücher im gewählten Zeitraum.');
+    $('sterne-hinweis').textContent = ohneText(sv.unbewertet, 'ohne Bewertung (0 Sterne)');
+
+    // Länge und Bewertung
+    const sk = seitenKlassen(g, o);
+    if (sk.klassen.some(k => k.bewertet)) {
+      balkenSVG($('laenge-bewertung'), sk.klassen.map(k => ({
+        label: k.label, kurz: k.kurz, wert: k.durchschnitt ?? 0, dim: k.wenigAussage,
+        tip: k.durchschnitt == null ? `${k.label} Seiten: keine Bewertungen` : `${k.label} Seiten: Ø ${zahl1(Math.round(k.durchschnitt * 10) / 10)} ★ aus ${zahl(k.bewertet)} ${k.bewertet === 1 ? 'Bewertung' : 'Bewertungen'}${k.wenigAussage ? ' (geringe Aussagekraft)' : ''}`,
+      })), { aria: 'Balkendiagramm: durchschnittliche Bewertung je Seitenlänge', hoehe: 220, skala: { max: 5, schritt: 1 }, fmt: x => zahl1(Math.round(x * 10) / 10) });
+      $('tbl-laenge-bewertung').innerHTML = '<thead><tr><th>Seiten</th><th>Bewertete Bücher</th><th>Ø Bewertung</th><th></th></tr></thead><tbody>' +
+        sk.klassen.map(k => `<tr><td>${k.label}</td><td>${zahl(k.bewertet)}</td><td>${k.durchschnitt == null ? '–' : zahl1(Math.round(k.durchschnitt * 10) / 10) + ' ★'}</td><td class="wenig">${k.wenigAussage ? '⚠ geringe Aussagekraft (weniger als 3 Bücher)' : ''}</td></tr>`).join('') + '</tbody>';
+    } else { leerText($('laenge-bewertung'), 'Keine bewerteten Bücher mit Seitenzahl im gewählten Zeitraum.'); $('tbl-laenge-bewertung').innerHTML = ''; }
+    $('laenge-bewertung-hinweis').textContent = [
+      sk.klassen.some(k => k.bewertet && k.wenigAussage) ? 'Blassere Balken: weniger als 3 bewertete Bücher, die Aussagekraft ist gering.' : '',
+      ohneText(sk.ohneSeiten, 'ohne Seitenzahl'),
+    ].filter(Boolean).join(' ');
+
+    // Bestenliste
+    const bl = bestenliste(g);
+    $('bestenliste').innerHTML = bl.length ? bl.map(gr => `
+      <div class="jahr-gruppe"><h3>${gr.jahr === 'ohne' ? 'Ohne Lesedatum' : gr.jahr}</h3>
+        <ul class="buchliste">${gr.buecher.map(b => `<li><span class="titel">${esc(b.titel)}</span><span class="meta">${esc(b.autor)}${b.datum ? ' · gelesen ' + datumDE(b.datum) : ''}</span></li>`).join('')}</ul></div>`).join('')
+      : '<p class="muted">Keine 5-Sterne-Bücher im gewählten Zeitraum.</p>';
   }
 
   /* ---------- Jahresziel ---------- */
@@ -1344,8 +1730,11 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     const v = parseInt(e.target.value, 10);
     if (v >= 1 && v <= 1000) { state.einst.jahresziel = v; speichereEinstellungen(); render(); }
   });
-  document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#seg-diagramm button').forEach(b => b.addEventListener('click', () => {
     state.einst.diagramm = b.dataset.modus; speichereEinstellungen(); render();
+  }));
+  document.querySelectorAll('#seg-autoren button').forEach(b => b.addEventListener('click', () => {
+    state.einst.autorenModus = b.dataset.aut; speichereEinstellungen(); render();
   }));
 
   function waehleJahr(j) {

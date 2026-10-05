@@ -29,6 +29,11 @@ Die App ist in Tabs gegliedert: Übersicht, Jahre, Autoren & Bücher, Bewertunge
 - **Ø Bewertung:** nur Bücher, die du bewertet hast (0 Sterne = nicht bewertet).
 - **Jahresziel:** gilt für das laufende Jahr (Startwert 25, änderbar). Die Hochrechnung nutzt dein Tempo seit dem 1. Januar.
 - **Zeit bis zum Lesen:** Tage zwischen *Date Added* und *Date Read*. Das ist kein Lesetempo, sondern die Zeit, die ein Buch im Regal lag. Bücher, die erst nach dem Lesen bei Goodreads erfasst wurden, fallen heraus.
+- **Top-Autoren, Verlage:** Top 10; bei Autoren zählt der Hauptautor aus `Author`. Bücher ohne Verlag werden ausgewiesen und nicht mitgezählt.
+- **Seitenlängen:** unter 200, 200–399, 400–600, über 600 Seiten. Bücher ohne Seitenzahl bleiben draußen.
+- **Erscheinungsjahr:** nur `Original Publication Year`. Klassiker sind vor 1950 erschienen, Neuerscheinungen in den letzten 5 Jahren. Fehlende Werte werden ausgewiesen.
+- **Regale:** nur eigene Regale aus `Bookshelves` (keine echten Genres); `read`, `to-read` und `currently-reading` sind herausgefiltert.
+- **Bewertungsvergleich:** nur Bücher mit eigener Bewertung. Ab einer mittleren Abweichung von ±0,25 Sternen gilt man als „streng“ bzw. „mild“. Bei weniger als 3 bewerteten Büchern je Längenklasse erscheint ein Hinweis auf geringe Aussagekraft.
 - **Heatmap, Wochentage, Streaks:** basieren auf dem Datum, an dem du ein Buch bei Goodreads als gelesen markiert hast. Der aktuelle Streak fällt auf 0, solange im laufenden Monat noch kein Buch beendet ist.
 
 ## Anpassen
