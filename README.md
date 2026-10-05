@@ -38,7 +38,18 @@ Die App ist in Tabs gegliedert: Übersicht, Jahre, Autoren & Bücher, Bewertunge
 - **Bücherstapel:** Anzahl Bücher des gewählten Zeitraums × Dicke pro Buch (Startwert 2,5 cm, im Feld änderbar). Der Vergleich nutzt die Liste `GEBAEUDE` ganz oben in `index.html`.
 - **Zufälliges Buch:** zieht aus dem Regal `to-read`. Mit Seitenlimit fallen Bücher ohne Seitenzahl heraus.
 - **Rückblick:** zeigt immer das Vorjahr. Der Button „Als Bild speichern“ erzeugt das PNG lokal im Browser.
+- **Dubletten:** Gleicher Titel (ohne Groß-/Kleinschreibung, Satzzeichen und Reihenangaben in Klammern) und gleicher Autor unter den gelesenen Büchern. „Ist keine Dublette“ wird pro Paar gespeichert. „Später gelesenes ausschließen“ nimmt das später gelesene Exemplar aus allen Statistiken, das früher gelesene zählt weiter. Beides lässt sich rückgängig machen; die CSV bleibt unverändert.
+- **Ausreißer:** Seitenzahlen aus der CSV unter 30 oder über 1.500 (Schwellen einstellbar) erscheinen als Verdachtsfälle und lassen sich korrigieren.
 - **Heatmap, Wochentage, Streaks:** basieren auf dem Datum, an dem du ein Buch bei Goodreads als gelesen markiert hast. Der aktuelle Streak fällt auf 0, solange im laufenden Monat noch kein Buch beendet ist.
+
+## Auf dem Handy nutzen
+
+Die App ist eine einzelne Datei, die Daten bleiben im Browser des jeweiligen Geräts. Ein Handy hat also eigene Daten und muss die CSV einmal selbst laden. Zwei Wege:
+
+- **Im selben WLAN:** Am Rechner im Projektordner `python3 -m http.server 8000` starten und am Handy `http://<IP-des-Rechners>:8000/index.html` öffnen. Es wird nichts ins Internet gesendet. Die IP zeigt der Rechner in den Netzwerkeinstellungen.
+- **Datei aufs Handy kopieren:** `index.html` und die CSV per Kabel, Cloud-Ordner oder AirDrop übertragen und im Browser öffnen. Das klappt je nach Handy und Browser unterschiedlich gut, besonders auf dem iPhone.
+
+Die Goodreads-CSV lässt sich nur über die Website exportieren, am Handy im Browser mit „Desktop-Version“.
 
 ## Anpassen
 

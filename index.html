@@ -18,6 +18,9 @@ const KONFIG = {
   jahresziel: 25,
   // Bücherstapel: Dicke eines Buchs in cm (Richtwert für Taschenbücher, im Browser änderbar)
   buchDickeCm: 2.5,
+  // Ausreißer-Warnung: Seitenzahlen unter/über diesen Werten gelten als Verdachtsfall (im Browser änderbar)
+  ausreisserMin: 30,
+  ausreisserMax: 1500,
   // Vergleiche gelten als "sinnvoll", wenn das Ergebnis in diesem Bereich liegt
   vergleichMin: 1,
   vergleichMax: 100,
@@ -332,6 +335,22 @@ td.wenig { color: var(--warn-text); font-size: .82rem; white-space: normal; }
 .buchliste .titel { font-weight: 600; }
 .buchliste .meta { display: block; font-size: .8rem; color: var(--text-3); }
 .buchliste .wert { float: right; font-weight: 650; margin-left: 8px; font-variant-numeric: tabular-nums; }
+/* Datenqualität */
+.kpi.dq { text-decoration: none; color: inherit; display: block; border: 1px solid transparent; }
+a.kpi.dq:hover { border-color: var(--border); }
+.kpi.dq.ok .wert { color: var(--ok); }
+.kpi.dq.warn .wert { color: var(--warn-text); }
+.dublette { background: var(--surface-2); border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+.dub-paar { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.dub-buch { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; min-width: 0; }
+.dub-buch.zaehlt { border-color: var(--accent); }
+.dub-buch.aus { opacity: .6; }
+.dub-buch .rolle { font-size: .75rem; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; }
+.dub-buch.zaehlt .rolle { color: var(--accent); }
+.dub-buch .titel { font-weight: 600; overflow-wrap: anywhere; }
+.dub-buch .meta { font-size: .82rem; color: var(--text-3); }
+.dub-aktionen { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+details summary { cursor: pointer; margin: 12px 0 8px; color: var(--text-2); }
 footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top: 32px; }
 </style>
 </head>
@@ -587,12 +606,35 @@ footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top
 
     <!-- Tab: Datenqualität -->
     <div class="tab-panel" role="tabpanel" data-panel="qualitaet">
+      <section class="card">
+        <h2>Übersicht</h2>
+        <p class="erklaerung">Gilt für alle gelesenen Bücher, unabhängig vom Zeitraum-Filter. Ausgeschlossene Dubletten sind nicht mitgezählt.</p>
+        <div class="kpis" id="dq-kpis"></div>
+      </section>
+
       <section class="card" id="ohne-seiten-card">
         <h2 id="ohne-titel">Bücher ohne Seitenzahl</h2>
         <p class="muted small" style="margin-top:-6px">Diese Bücher haben in der CSV keine oder 0 Seiten und fehlen deshalb in der Seitensumme. Trage die Seitenzahl hier nach – sie wird nur in deinem Browser gespeichert, die CSV bleibt unverändert. Nachgetragene Werte fließen in alle Auswertungen ein.</p>
         <ul class="ohne-liste" id="ohne-liste"></ul>
       </section>
-      <section class="card"><p class="muted">Dubletten, Ausreißer und die Gesamtübersicht folgen in Stufe 6.</p></section>
+      <section class="card" id="ausreisser-card">
+        <h2 id="ausreisser-titel">Ausreißer bei den Seitenzahlen</h2>
+        <p class="erklaerung">Seitenzahlen aus der CSV, die ungewöhnlich klein oder groß sind (Tippfehler, Hörbücher, Sammelbände). Du kannst sie hier korrigieren; die CSV bleibt unverändert.</p>
+        <div class="toolbar" style="margin-bottom:12px">
+          <label>Verdacht bei unter <input type="number" id="inp-aus-min" min="1" max="5000" step="1"> oder über <input type="number" id="inp-aus-max" min="2" max="50000" step="50"> Seiten</label>
+        </div>
+        <ul class="ohne-liste" id="ausreisser-liste"></ul>
+      </section>
+
+      <section class="card" id="dubletten-card">
+        <h2 id="dubletten-titel">Mögliche Dubletten</h2>
+        <p class="erklaerung">Gleicher Titel (ohne Groß-/Kleinschreibung, Satzzeichen und Reihenangaben in Klammern) und gleicher Autor unter deinen gelesenen Büchern. Beim Ausschließen zählt das früher gelesene Exemplar weiter, das später gelesene fällt aus der Statistik. Die CSV bleibt unverändert.</p>
+        <div id="dubletten-liste"></div>
+        <details id="dubletten-markiert-box" class="hidden">
+          <summary id="dubletten-markiert-titel"></summary>
+          <div id="dubletten-markiert"></div>
+        </details>
+      </section>
     </div>
   </main>
 
@@ -1062,6 +1104,79 @@ function bestenliste(buecher) {
     }));
 }
 
+/* ---------- Datenqualität ---------- */
+
+/** Titel/Autor für den Dublettenvergleich: Kleinschreibung, ohne Reihenangaben in Klammern, ohne Satzzeichen */
+function normalisiereFuerVergleich(t) {
+  return String(t ?? '').toLowerCase()
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ').trim();
+}
+
+/** Reihenfolge des Lesens: Lesedatum, bei Gleichstand/ohne Datum Date Added, zuletzt ID. Bücher ohne Lesedatum gelten als später. */
+function leseReihenfolge(a, b) {
+  const k = x => [x.datum || '9999-99-99', x.hinzugefuegt || '9999-99-99', x.id];
+  const ka = k(a), kb = k(b);
+  for (let i = 0; i < 3; i++) if (ka[i] !== kb[i]) return ka[i] < kb[i] ? -1 : 1;
+  return 0;
+}
+
+function paarSchluessel(a, b) { return [a.id, b.id].sort().join('|'); }
+
+/** Mögliche Dubletten als Paare. Pro Paar: frueher (zählt) und spaeter (wird beim Ausschließen herausgenommen).
+    keine: Set mit Paarschlüsseln, die als "keine Dublette" markiert sind; ausgeschlossen: Set mit Buch-IDs. */
+function findeDubletten(buecher, keine = new Set(), ausgeschlossen = new Set()) {
+  const gruppen = new Map();
+  for (const b of buecher) {
+    const t = normalisiereFuerVergleich(b.titel);
+    if (!t) continue;
+    const key = t + '|' + normalisiereFuerVergleich(b.autor);
+    if (!gruppen.has(key)) gruppen.set(key, []);
+    gruppen.get(key).push(b);
+  }
+  const offen = [], markiert = [];
+  for (const g of gruppen.values()) {
+    if (g.length < 2) continue;
+    g.sort(leseReihenfolge);
+    for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) {
+      const key = paarSchluessel(g[i], g[j]);
+      const paar = {
+        key, frueher: g[i], spaeter: g[j],
+        frueherAusgeschlossen: ausgeschlossen.has(g[i].id),
+        spaeterAusgeschlossen: ausgeschlossen.has(g[j].id),
+      };
+      (keine.has(key) ? markiert : offen).push(paar);
+    }
+  }
+  const nachTitel = (a, b) => a.frueher.titel.localeCompare(b.frueher.titel, 'de') || a.key.localeCompare(b.key);
+  return { offen: offen.sort(nachTitel), markiert: markiert.sort(nachTitel) };
+}
+
+/** Verdachtsfälle: Seitenzahl aus der CSV unter min oder über max (auch wenn schon korrigiert) */
+function ausreisserListe(buecher, min, max) {
+  return buecher.filter(b => b.seitenCSV != null && (b.seitenCSV < min || b.seitenCSV > max))
+    .sort((a, b) => a.seitenCSV - b.seitenCSV || a.titel.localeCompare(b.titel, 'de'));
+}
+
+/** Übersicht. gezaehlt = Bücher in der Statistik, lese = alle gelesenen (inkl. ausgeschlossener Dubletten) */
+function datenqualitaet(gezaehlt, lese, { min, max, keine = new Set(), ausgeschlossen = new Set() }) {
+  const d = findeDubletten(lese, keine, ausgeschlossen);
+  // ein Paar gilt als erledigt, sobald eines der beiden Bücher ausgeschlossen ist
+  const unerledigt = d.offen.filter(p => !p.frueherAusgeschlossen && !p.spaeterAusgeschlossen);
+  return {
+    gezaehlt: gezaehlt.length,
+    gelesen: lese.length,
+    ausgeschlossen: lese.length - gezaehlt.length,
+    ohneSeiten: gezaehlt.filter(b => b.seiten == null).length,
+    ohneDatum: gezaehlt.filter(b => !b.datum).length,
+    ohneBewertung: gezaehlt.filter(b => !(b.bewertung > 0)).length,
+    dubletten: unerledigt.length,
+    ausreisser: ausreisserListe(gezaehlt, min, max).filter(b => !b.seitenManuell).length,
+    ausreisserKorrigiert: ausreisserListe(gezaehlt, min, max).filter(b => b.seitenManuell).length,
+  };
+}
+
 /* ---------- Spielerisches ---------- */
 
 const MEILENSTEINE_BUECHER = [10, 25, 50, 100, 250, 500, 1000];
@@ -1303,6 +1418,7 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     dateiname: 'lesetracker.dateiname',
     seiten: 'lesetracker.seiten',
     einstellungen: 'lesetracker.einstellungen',
+    dq: 'lesetracker.datenqualitaet',   // {keine: [Paarschlüssel], ausgeschlossen: [Buch-IDs]}
   };
   const ls = {
     get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -1323,8 +1439,10 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     dateiname: '',
     speicherWarnung: false,
     overrides: ladeJSON(SPEICHER.seiten, {}),
+    dq: Object.assign({ keine: [], ausgeschlossen: [] }, ladeJSON(SPEICHER.dq, {})),
+    lese: [],      // alle gelesenen Bücher inkl. ausgeschlossener Dubletten
     einst: Object.assign(
-      { jahr: 'alle', mehrfach: false, minutenProSeite: KONFIG.minutenProSeite, diagramm: 'buecher', autorenModus: 'buecher', tab: 'uebersicht', jahresziel: KONFIG.jahresziel, stapelCm: KONFIG.buchDickeCm, zufallMax: '' },
+      { jahr: 'alle', mehrfach: false, minutenProSeite: KONFIG.minutenProSeite, diagramm: 'buecher', autorenModus: 'buecher', tab: 'uebersicht', jahresziel: KONFIG.jahresziel, stapelCm: KONFIG.buchDickeCm, zufallMax: '', ausreisserMin: KONFIG.ausreisserMin, ausreisserMax: KONFIG.ausreisserMax },
       ladeJSON(SPEICHER.einstellungen, {})
     ),
   };
@@ -1332,6 +1450,9 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
   if (!(state.einst.jahresziel >= 1)) state.einst.jahresziel = KONFIG.jahresziel;
   if (!(state.einst.stapelCm > 0)) state.einst.stapelCm = KONFIG.buchDickeCm;
   state.zufallId = null;
+  if (!Array.isArray(state.dq.keine)) state.dq.keine = [];
+  if (!Array.isArray(state.dq.ausgeschlossen)) state.dq.ausgeschlossen = [];
+  if (!(state.einst.ausreisserMin >= 1 && state.einst.ausreisserMax > state.einst.ausreisserMin)) { state.einst.ausreisserMin = KONFIG.ausreisserMin; state.einst.ausreisserMax = KONFIG.ausreisserMax; }
 
   function speichereEinstellungen() { ls.set(SPEICHER.einstellungen, JSON.stringify(state.einst)); }
   function opt() { return { mehrfach: state.einst.mehrfach, minutenProSeite: state.einst.minutenProSeite }; }
@@ -1377,7 +1498,9 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
 
   function neuBerechnen() {
     state.alle = normalisiereAlle(state.datensaetze, state.overrides);
-    state.buecher = state.alle.filter(b => b.regal === 'read');
+    state.lese = state.alle.filter(b => b.regal === 'read');
+    const raus = new Set(state.dq.ausgeschlossen);
+    state.buecher = state.lese.filter(b => !raus.has(b.id)); // ausgeschlossene Dubletten zählen nirgends mit
     const j = state.einst.jahr;
     const gueltig = j === 'alle' || (j === 'ohne' && state.buecher.some(b => b.jahr == null)) ||
       state.buecher.some(b => b.jahr === Number(j));
@@ -1405,6 +1528,7 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     renderBuecherAutoren(gefiltert, o);
     renderBewertungen(gefiltert, o);
     renderSpiel(alle, gefiltert, o);
+    renderDatenqualitaet(alle, o);
     renderOhneSeiten(alle);
   }
 
@@ -1427,6 +1551,8 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     if (document.activeElement !== $('inp-minuten')) $('inp-minuten').value = String(state.einst.minutenProSeite);
     if (document.activeElement !== $('inp-ziel')) $('inp-ziel').value = String(state.einst.jahresziel);
     if (document.activeElement !== $('inp-cm')) $('inp-cm').value = String(state.einst.stapelCm);
+    if (document.activeElement !== $('inp-aus-min')) $('inp-aus-min').value = String(state.einst.ausreisserMin);
+    if (document.activeElement !== $('inp-aus-max')) $('inp-aus-max').value = String(state.einst.ausreisserMax);
     if (document.activeElement !== $('inp-zufall-max')) $('inp-zufall-max').value = state.einst.zufallMax === '' ? '' : String(state.einst.zufallMax);
     $('dateiinfo').textContent = state.dateiname ? 'Datei: ' + state.dateiname : '';
     $('inp-cm').addEventListener('input', e => {
@@ -1461,6 +1587,8 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     if (offen) {
       h.push(`<strong>${zahl(offen)} ${offen === 1 ? 'Buch' : 'Bücher'} ohne Seitenzahl:</strong> ${offen === 1 ? 'zählt' : 'zählen'} als gelesen, aber nicht zur Seitensumme und Lesedauer. <a href="#" data-gehe-tab="qualitaet">Seitenzahl nachtragen</a>`);
     }
+    const aus = state.lese.length - state.buecher.length;
+    if (aus) h.push(`<strong>${zahl(aus)} ${aus === 1 ? 'Dublette' : 'Dubletten'} ausgeschlossen:</strong> ${aus === 1 ? 'zählt' : 'zählen'} in keiner Statistik mit. <a href="#" data-gehe-tab="qualitaet">Ansehen</a>`);
     $('hinweise').innerHTML = h.map(t => `<p class="hinweis">${t}</p>`).join('');
   }
 
@@ -2029,6 +2157,63 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     $('hm-legende').innerHTML = `weniger ${[0, 1, 2, 3, 4].map(l => `<i style="background:var(--hm${l})"></i>`).join('')} mehr <span style="margin-left:8px">· dunkelstes Feld = ${zahl(max)} ${buecherWort(max)}/Monat · Klick auf ein Jahr filtert</span>`;
   }
 
+  /* ---------- Datenqualität ---------- */
+  function speichereDq() { ls.set(SPEICHER.dq, JSON.stringify(state.dq)); neuBerechnen(); }
+
+  function renderDatenqualitaet(alle, o) {
+    const keine = new Set(state.dq.keine), raus = new Set(state.dq.ausgeschlossen);
+    const q = datenqualitaet(alle, state.lese, { min: state.einst.ausreisserMin, max: state.einst.ausreisserMax, keine, ausgeschlossen: raus });
+    const tile = (label, n, sub, ziel, einheit) => {
+      const klasse = n === 0 ? 'ok' : 'warn';
+      const inhalt = `<div class="label">${label}</div><div class="wert">${n === 0 ? '✓ ' : ''}${zahl(n)}</div><div class="sub">${sub}</div>`;
+      return ziel ? `<a href="#" class="kpi dq ${klasse}" data-scroll="${ziel}">${inhalt}</a>` : `<div class="kpi dq ${klasse}">${inhalt}</div>`;
+    };
+    $('dq-kpis').innerHTML = [
+      `<div class="kpi dq"><div class="label">Gezählte Bücher</div><div class="wert">${zahl(q.gezaehlt)}</div><div class="sub">von ${zahl(q.gelesen)} gelesenen${q.ausgeschlossen ? ` (${zahl(q.ausgeschlossen)} ausgeschlossen)` : ''}</div></div>`,
+      tile('Ohne Seitenzahl', q.ohneSeiten, 'fehlen in Seitensumme und Lesedauer', 'ohne-seiten-card'),
+      tile('Ohne Lesedatum', q.ohneDatum, 'fehlen in Jahres-, Monats- und Tempo-Auswertungen'),
+      tile('Ohne Bewertung', q.ohneBewertung, 'zählen nicht in die Ø Bewertung'),
+      tile('Mögliche Dubletten', q.dubletten, q.dubletten ? 'noch nicht geprüft' : 'alle geprüft', 'dubletten-card'),
+      tile('Seiten-Ausreißer', q.ausreisser, `unter ${zahl(state.einst.ausreisserMin)} oder über ${zahl(state.einst.ausreisserMax)} Seiten${q.ausreisserKorrigiert ? `, ${zahl(q.ausreisserKorrigiert)} korrigiert` : ''}`, 'ausreisser-card'),
+    ].join('');
+
+    // Ausreißer
+    const aus = ausreisserListe(alle, state.einst.ausreisserMin, state.einst.ausreisserMax);
+    $('ausreisser-titel').textContent = `Ausreißer bei den Seitenzahlen (${zahl(q.ausreisser)} offen${q.ausreisserKorrigiert ? `, ${zahl(q.ausreisserKorrigiert)} korrigiert` : ''})`;
+    $('ausreisser-liste').innerHTML = aus.length ? aus.map(b => `
+      <li>
+        <div><div class="titel">${esc(b.titel)}</div><div class="meta">${esc(b.autor)} · CSV: ${zahl(b.seitenCSV)} Seiten${b.seitenManuell ? ` · <span class="status">✓ korrigiert auf ${zahl(b.seiten)}</span>` : ''}</div></div>
+        <form data-id="${esc(b.id)}">
+          <input type="number" name="seiten" min="1" max="20000" step="1" placeholder="Seiten" value="${b.seitenManuell ? b.seiten : ''}" aria-label="Korrigierte Seitenzahl für ${esc(b.titel)}">
+          <button type="submit">Korrigieren</button>
+          ${b.seitenManuell ? '<button type="button" data-aktion="loeschen">Zurücksetzen</button>' : ''}
+        </form>
+      </li>`).join('') : '<li class="muted">Keine Verdachtsfälle bei diesen Schwellen.</li>';
+
+    // Dubletten
+    const d = findeDubletten(state.lese, keine, raus);
+    $('dubletten-titel').textContent = `Mögliche Dubletten (${zahl(q.dubletten)} offen)`;
+    const buchBlock = (b, rolle, klasse) => `<div class="dub-buch ${klasse}"><div class="rolle">${rolle}</div><div class="titel">${esc(b.titel)}</div>
+      <div class="meta">${esc(b.autor)}<br>${b.datum ? 'gelesen ' + datumDE(b.datum) : 'ohne Lesedatum'} · ${b.seiten != null ? zahl(b.seiten) + ' Seiten' : 'ohne Seitenzahl'} · ${b.bewertung ? b.bewertung + ' ★' : 'unbewertet'}${b.leseanzahl > 1 ? ` · ${b.leseanzahl}× gelesen` : ''}</div></div>`;
+    const eintrag = (p, mitMarkiert) => {
+      const fAus = p.frueherAusgeschlossen, sAus = p.spaeterAusgeschlossen;
+      let aktionen;
+      if (fAus || sAus) {
+        aktionen = [fAus ? `<button type="button" data-dq="einbeziehen" data-id="${esc(p.frueher.id)}">Früher gelesenes wieder einbeziehen</button>` : '',
+                    sAus ? `<button type="button" data-dq="einbeziehen" data-id="${esc(p.spaeter.id)}">Später gelesenes wieder einbeziehen</button>` : ''].join('');
+      } else if (mitMarkiert) {
+        aktionen = `<button type="button" data-dq="rueckgaengig" data-key="${esc(p.key)}">Markierung entfernen</button>`;
+      } else {
+        aktionen = `<button type="button" class="primary" data-dq="ausschliessen" data-id="${esc(p.spaeter.id)}">Später gelesenes ausschließen</button><button type="button" data-dq="keine" data-key="${esc(p.key)}">Ist keine Dublette</button>`;
+      }
+      return `<div class="dublette"><div class="dub-paar">${buchBlock(p.frueher, fAus ? 'früher gelesen · ausgeschlossen' : 'früher gelesen · zählt', fAus ? 'aus' : 'zaehlt')}${buchBlock(p.spaeter, sAus ? 'später gelesen · ausgeschlossen' : 'später gelesen', sAus ? 'aus' : '')}</div><div class="dub-aktionen">${aktionen}</div></div>`;
+    };
+    $('dubletten-liste').innerHTML = d.offen.length ? d.offen.map(p => eintrag(p, false)).join('') : '<p class="muted">Keine möglichen Dubletten gefunden.</p>';
+    $('dubletten-markiert-box').classList.toggle('hidden', !d.markiert.length);
+    $('dubletten-markiert-titel').textContent = `Als „keine Dublette“ markiert (${zahl(d.markiert.length)})`;
+    $('dubletten-markiert').innerHTML = d.markiert.map(p => eintrag(p, true)).join('');
+  }
+
   /* ---------- Bücher ohne Seitenzahl ---------- */
   function renderOhneSeiten(alle) {
     const liste = alle.filter(b => b.seitenCSV == null)
@@ -2083,10 +2268,12 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
   $('btn-reset').addEventListener('click', () => {
     if (!confirm('Gespeicherte CSV aus dem Browser löschen?')) return;
     ls.del(SPEICHER.csv); ls.del(SPEICHER.dateiname);
-    if (Object.keys(state.overrides).length && confirm('Auch die manuell nachgetragenen Seitenzahlen löschen?')) {
-      ls.del(SPEICHER.seiten); state.overrides = {};
+    const hatManuelles = Object.keys(state.overrides).length || state.dq.keine.length || state.dq.ausgeschlossen.length;
+    if (hatManuelles && confirm('Auch deine manuellen Angaben löschen (nachgetragene Seitenzahlen, Dubletten-Markierungen)?')) {
+      ls.del(SPEICHER.seiten); ls.del(SPEICHER.dq);
+      state.overrides = {}; state.dq = { keine: [], ausgeschlossen: [] };
     }
-    state.datensaetze = []; state.buecher = []; state.dateiname = '';
+    state.datensaetze = []; state.alle = []; state.lese = []; state.buecher = []; state.dateiname = '';
     zeigeUpload(true);
   });
 
@@ -2153,17 +2340,43 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     if (a) { e.preventDefault(); document.querySelector(`.tabs [data-tab="${a.dataset.geheTab}"]`).click(); }
   });
 
-  $('ohne-liste').addEventListener('submit', e => {
+  // Seitenzahl nachtragen (fehlende Werte) und korrigieren (Ausreißer) – beide Listen verhalten sich gleich
+  [$('ohne-liste'), $('ausreisser-liste')].forEach(liste => {
+    liste.addEventListener('submit', e => {
+      e.preventDefault();
+      const f = e.target;
+      const seiten = parseSeiten(f.elements.seiten.value);
+      if (seiten == null) { f.elements.seiten.focus(); return; }
+      setzeOverride(f.dataset.id, seiten);
+    });
+    liste.addEventListener('click', e => {
+      const b = e.target.closest('[data-aktion=loeschen]');
+      if (b) setzeOverride(b.closest('form').dataset.id, null);
+    });
+  });
+  $('dubletten-card').addEventListener('click', e => {
+    const b = e.target.closest('[data-dq]');
+    if (!b) return;
+    const { dq, id, key } = b.dataset;
+    if (dq === 'ausschliessen' && !state.dq.ausgeschlossen.includes(id)) state.dq.ausgeschlossen.push(id);
+    else if (dq === 'einbeziehen') state.dq.ausgeschlossen = state.dq.ausgeschlossen.filter(x => x !== id);
+    else if (dq === 'keine' && !state.dq.keine.includes(key)) state.dq.keine.push(key);
+    else if (dq === 'rueckgaengig') state.dq.keine = state.dq.keine.filter(x => x !== key);
+    speichereDq();
+  });
+  $('dq-kpis').addEventListener('click', e => {
+    const a = e.target.closest('[data-scroll]');
+    if (!a) return;
     e.preventDefault();
-    const f = e.target;
-    const seiten = parseSeiten(f.elements.seiten.value);
-    if (seiten == null) { f.elements.seiten.focus(); return; }
-    setzeOverride(f.dataset.id, seiten);
+    const ziel = $(a.dataset.scroll);
+    if (ziel && !ziel.classList.contains('hidden')) ziel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
-  $('ohne-liste').addEventListener('click', e => {
-    const b = e.target.closest('[data-aktion=loeschen]');
-    if (b) setzeOverride(b.closest('form').dataset.id, null);
-  });
+  function setzeSchwellen() {
+    const min = parseInt($('inp-aus-min').value, 10), max = parseInt($('inp-aus-max').value, 10);
+    if (min >= 1 && max > min) { state.einst.ausreisserMin = min; state.einst.ausreisserMax = max; speichereEinstellungen(); render(); }
+  }
+  $('inp-aus-min').addEventListener('input', setzeSchwellen);
+  $('inp-aus-max').addEventListener('input', setzeSchwellen);
 
   /* ---------- Start ---------- */
   const gespeichert = ls.get(SPEICHER.csv);

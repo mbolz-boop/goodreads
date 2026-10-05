@@ -13,7 +13,8 @@ const block = id => {
 };
 const ctx = vm.createContext({ Intl });
 vm.runInContext(block('konfig') + '\n' + block('kern') + `
-  ;Object.assign(globalThis, { KONFIG, VERGLEICHE, GEBAEUDE, meilensteine, stapelHoehe, gebaeudeVergleich, zufallsKandidaten,
+  ;Object.assign(globalThis, { KONFIG, VERGLEICHE, GEBAEUDE, normalisiereFuerVergleich, findeDubletten, ausreisserListe, datenqualitaet,
+    paarSchluessel, leseReihenfolge, meilensteine, stapelHoehe, gebaeudeVergleich, zufallsKandidaten,
     waehleZufall, rueckblick, rueckblickSVG, umbrechen, parseCSV, zeilenZuDatensaetzen, normalisiereBuecher,
     normalisiereAlle, filterNachJahr, berechneKennzahlen, jahresAuswertung, formatStunden, formatTageStunden,
     waehleVergleiche, rundeVerhaeltnis, zahl, jahreszielStatus, zeitBisZumLesen, monatsMatrix, wochentage,
@@ -287,6 +288,74 @@ test('Umbrechen: Zeilenlänge und Auslassungspunkte', () => {
   const l = K.umbrechen('a'.repeat(30) + ' ' + 'b'.repeat(30) + ' ' + 'c'.repeat(30), 20, 2);
   eq([l.length, l[1].endsWith('…'), l.every(z => z.length <= 20)], [2, true, true]);
 });
+
+console.log('\nDatenqualität');
+test('Normalisierung: Kleinschreibung, Satzzeichen und Reihenangabe in Klammern fallen weg', () => eq([
+  K.normalisiereFuerVergleich('Der leise Kartograf (Kartograf-Reihe, #1)'),
+  K.normalisiereFuerVergleich('Salz, Stein und "Sterne"'),
+  K.normalisiereFuerVergleich('  DER   leise Kartograf!  '),
+  K.normalisiereFuerVergleich('J.K. Rowling') === K.normalisiereFuerVergleich('J. K. Rowling'),
+], ['der leise kartograf', 'salz stein und sterne', 'der leise kartograf', true]));
+test('Umlaute bleiben erhalten (Märchen ≠ Marchen)', () => assert.notStrictEqual(K.normalisiereFuerVergleich('Märchen'), K.normalisiereFuerVergleich('Marchen')));
+
+const dub = K.findeDubletten(buecher);
+test('Beispiel-CSV: genau 1 mögliche Dublette („Der leise Kartograf“)', () => eq([dub.offen.length, dub.markiert.length], [1, 0]));
+test('früher gelesen (2021) zählt, später gelesen (2024, mit Reihenangabe) wird ausgeschlossen', () => eq(
+  [dub.offen[0].frueher.titel, dub.offen[0].frueher.datum, dub.offen[0].spaeter.titel, dub.offen[0].spaeter.datum],
+  ['Der leise Kartograf', '2021-08-15', 'Der leise Kartograf (Kartograf-Reihe, #1)', '2024-01-20']));
+test('Der Folgeband „… und das Meer“ ist keine Dublette', () => assert.ok(!dub.offen.some(p => p.frueher.id === 'gr:900018' || p.spaeter.id === 'gr:900018')));
+const pk = dub.offen[0].key;
+test('Paarschlüssel unabhängig von der Reihenfolge', () => assert.strictEqual(K.paarSchluessel(dub.offen[0].spaeter, dub.offen[0].frueher), pk));
+test('„Ist keine Dublette“ wirkt pro Paar', () => {
+  const d2 = K.findeDubletten(buecher, new Set([pk])); eq([d2.offen.length, d2.markiert.length], [0, 1]);
+});
+test('ausgeschlossenes Exemplar wird am Paar gekennzeichnet', () => {
+  const d3 = K.findeDubletten(buecher, new Set(), new Set([dub.offen[0].spaeter.id]));
+  eq([d3.offen[0].spaeterAusgeschlossen, d3.offen[0].frueherAusgeschlossen], [true, false]);
+});
+test('Dubletten: gleicher Titel, anderer Autor → keine Dublette', () => eq(
+  K.findeDubletten([{ id: 'a', titel: 'Nebel', autor: 'A Meier', datum: '2020-01-01' }, { id: 'b', titel: 'Nebel', autor: 'B Schulz', datum: '2021-01-01' }]).offen.length, 0));
+test('Dubletten: Gruppe aus 3 Büchern ergibt 3 Paare, älteste zuerst', () => {
+  const g = ['c', 'a', 'b'].map((id, i) => ({ id, titel: 'Nebel (Band ' + i + ')', autor: 'M', datum: ['2022-05-01', '2020-01-01', '2021-03-03'][i] }));
+  const d = K.findeDubletten(g);
+  eq([d.offen.length, d.offen.map(p => [p.frueher.id, p.spaeter.id].join('>')).sort()], [3, ['a>b', 'a>c', 'b>c']]);
+});
+test('Lesereihenfolge: ohne Lesedatum gilt als später; gleiches Datum → früher hinzugefügt', () => {
+  assert.strictEqual(K.leseReihenfolge({ id: 'a', datum: null }, { id: 'b', datum: '2024-01-01' }), 1);
+  assert.strictEqual(K.leseReihenfolge({ id: 'a', datum: '2024-01-01', hinzugefuegt: '2023-05-01' }, { id: 'b', datum: '2024-01-01', hinzugefuegt: '2023-01-01' }), 1);
+});
+test('Titel nur aus Satzzeichen wird ignoriert', () => eq(K.findeDubletten([{ id: 'a', titel: '???', autor: 'x' }, { id: 'b', titel: '!!!', autor: 'x' }]).offen.length, 0));
+
+test('Ausreißer mit Standardschwellen 30/1500: nur das 12-Seiten-Faltblatt', () => eq(K.ausreisserListe(buecher, 30, 1500).map(b => [b.titel, b.seitenCSV]), [['Ein Faltblatt über Möwen', 12]]));
+test('Ausreißer: Schwelle über 1.000 Seiten findet die beiden Kartograf-Bände', () => eq(
+  K.ausreisserListe(buecher, 30, 1000).map(b => b.seitenCSV), [12, 1184, 1190]));
+test('Ausreißer: untere Schwelle 200 findet 3 Bücher', () => eq(K.ausreisserListe(buecher, 200, 1500).map(b => b.seitenCSV), [12, 96, 188]));
+test('Ausreißer: Bücher ohne Seitenzahl sind kein Ausreißer', () => assert.ok(!K.ausreisserListe(buecher, 30, 1500).some(b => b.seitenCSV == null)));
+test('Korrigierter Ausreißer bleibt auffindbar und fließt in die Seitensumme', () => {
+  const b2 = K.normalisiereBuecher(daten, { 'gr:900021': 120 });
+  eq([K.ausreisserListe(b2, 30, 1500)[0].seitenManuell, K.berechneKennzahlen(b2, opt).seiten], [true, 8531 - 12 + 120]);
+});
+
+const dq = K.datenqualitaet(buecher, buecher, { min: 30, max: 1500 });
+test('Übersicht: 2 ohne Seitenzahl, 1 ohne Datum, 3 ohne Bewertung, 1 Dublette, 1 Ausreißer', () => eq(
+  [dq.ohneSeiten, dq.ohneDatum, dq.ohneBewertung, dq.dubletten, dq.ausreisser, dq.ausgeschlossen], [2, 1, 3, 1, 1, 0]));
+const ausgeschl = new Set([dub.offen[0].spaeter.id]);
+const gezaehlt2 = buecher.filter(b => !ausgeschl.has(b.id));
+const k2 = K.berechneKennzahlen(gezaehlt2, opt);
+test('Dublette ausschließen: 21 Bücher, 7.347 Seiten, Bewertungen 71/18', () => eq(
+  [k2.anzahl, k2.seiten, k2.bewertungen, k2.durchschnittBewertung.toFixed(3)], [21, 7347, 18, '3.944']));
+test('nach dem Ausschließen: dickstes Buch ist das früher gelesene Exemplar', () => eq([k2.dickstes.titel, k2.dickstes.seiten], ['Der leise Kartograf', 1190]));
+test('Übersicht nach dem Ausschließen: Dublette erledigt, 1 ausgeschlossen', () => {
+  const q = K.datenqualitaet(gezaehlt2, buecher, { min: 30, max: 1500, ausgeschlossen: ausgeschl });
+  eq([q.dubletten, q.ausgeschlossen, q.gezaehlt, q.gelesen], [0, 1, 21, 22]);
+});
+test('Übersicht: korrigierte Ausreißer werden separat gezählt', () => {
+  const b2 = K.normalisiereBuecher(daten, { 'gr:900021': 120 });
+  const q = K.datenqualitaet(b2, b2, { min: 30, max: 1500 });
+  eq([q.ausreisser, q.ausreisserKorrigiert], [0, 1]);
+});
+test('als „keine Dublette“ markiertes Paar zählt nicht als Problem', () => eq(
+  K.datenqualitaet(buecher, buecher, { min: 30, max: 1500, keine: new Set([pk]) }).dubletten, 0));
 
 console.log('\nFormatierung');
 test('deutsche Tausenderpunkte', () => assert.strictEqual(K.zahl(1234567), '1.234.567'));
