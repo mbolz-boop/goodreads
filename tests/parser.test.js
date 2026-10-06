@@ -259,14 +259,33 @@ test('Zufall: Nachtragen einer Seitenzahl macht das Buch wählbar', () => {
   const k2 = K.zufallsKandidaten(K.normalisiereAlle(daten, { 'gr:900026': 200 }), 400);
   eq(k2.kandidaten.map(b => b.titel).sort(), ['Ein Jahr in Bergen', 'Morgenrot über Riga']);
 });
-test('Zufall: deterministisch mit Testzufall, nie dasselbe Buch zweimal hintereinander', () => {
-  const erstes = K.waehleZufall(zk.kandidaten, () => 0);
-  const zweites = K.waehleZufall(zk.kandidaten, () => 0, erstes.id);
-  eq([erstes.titel === zk.kandidaten[0].titel, zweites.id !== erstes.id], [true, true]);
-  assert.strictEqual(K.waehleZufall(zk.kandidaten, () => 0.999999).id, zk.kandidaten[2].id);
+test('Ziehung ohne Zurücklegen: in einer Runde kommt jedes Buch genau einmal dran, egal welche Zufallszahlen', () => {
+  const ids = [...zk.kandidaten.map(b => b.id)].sort();
+  for (const rnd of [() => 0, () => 0.999999, () => 0.5, Math.random]) {
+    const gesehen = new Set(), runde = [];
+    for (let i = 0; i < zk.kandidaten.length; i++) runde.push(K.waehleZufall(zk.kandidaten, rnd, gesehen, null).id);
+    eq(runde.slice().sort(), ids);
+  }
 });
-test('Zufall: leere Liste → null; einziges Buch bleibt wählbar', () => eq(
-  [K.waehleZufall([]), K.waehleZufall(zl.kandidaten, Math.random, zl.kandidaten[0].id).titel], [null, 'Morgenrot über Riga']));
+test('Nach einer Runde beginnt die nächste, das zuletzt gezeigte Buch kommt nicht sofort wieder (500 Ziehungen mit echtem Zufall)', () => {
+  const gesehen = new Set(); let letzte = null, wiederholt = 0; const zaehler = {};
+  for (let i = 0; i < 500; i++) {
+    const b = K.waehleZufall(zk.kandidaten, Math.random, gesehen, letzte);
+    if (b.id === letzte) wiederholt++;
+    zaehler[b.id] = (zaehler[b.id] || 0) + 1; letzte = b.id;
+  }
+  eq([wiederholt, Object.keys(zaehler).length], [0, 3]);
+  assert.ok(Object.values(zaehler).every(n => n >= 165 && n <= 168)); // 500 Ziehungen auf 3 Bücher: je 166/167
+});
+test('Mit nur einem Kandidaten kommt immer dasselbe Buch, leere Liste → null', () => eq(
+  [K.waehleZufall(zl.kandidaten, Math.random, new Set(), zl.kandidaten[0].id).titel, K.waehleZufall(zl.kandidaten, Math.random, new Set(), null).titel, K.waehleZufall([], Math.random, new Set(), null)],
+  ['Morgenrot über Riga', 'Morgenrot über Riga', null]));
+test('Zufall bleibt zufällig: bei 10 Kandidaten sind die ersten Bücher je Runde verschieden verteilt', () => {
+  const kand = Array.from({ length: 10 }, (_, i) => ({ id: 'b' + i }));
+  const erste = new Set();
+  for (let r = 0; r < 200; r++) erste.add(K.waehleZufall(kand, Math.random, new Set(), null).id);
+  assert.ok(erste.size >= 8);
+});
 
 const rb = K.rueckblick(buecher, 2025, opt);
 test('Rückblick 2025: 6 Bücher, 2.125 Seiten, 71 Std.', () => eq([rb.anzahl, rb.seiten, K.formatStunden(rb.minuten)], [6, 2125, '71 Std.']));
@@ -383,6 +402,15 @@ test('CSV nur mit den 7 Pflichtspalten (ohne Average Rating, Verlag, Regale, Dat
   eq([gelesen.length, k.seiten, k.ohneSeiten, k.ohneDatum, k.durchschnittBewertung], [2, 300, 1, 1, 4]);
   eq([K.topGruppen(gelesen, b => b.verlag ? [b.verlag] : [], o).ohne, K.topGruppen(gelesen, b => b.regale, o).ohne, K.erscheinungsStatistik(gelesen, o, 2026).fehlend, K.zeitBisZumLesen(gelesen).anzahl], [2, 2, 2, 0]);
   eq([K.findeDubletten(gelesen).offen.length, K.rueckblick(gelesen, 2024, o).anzahl, K.zufallsKandidaten(alle, 0).kandidaten.length], [0, 1, 1]);
+});
+test('Keine Event-Handler innerhalb von Zeichenfunktionen (sonst werden sie bei jedem Neuzeichnen doppelt registriert)', () => {
+  const ui = block('ui'), funde = [];
+  for (const m of ui.matchAll(/function (render\w*|\w*SVG)\s*\(/g)) {
+    let i = ui.indexOf('{', m.index), tiefe = 0, j = i;
+    for (; j < ui.length; j++) { if (ui[j] === '{') tiefe++; else if (ui[j] === '}' && --tiefe === 0) break; }
+    if (/addEventListener\(/.test(ui.slice(i, j))) funde.push(m[1]);
+  }
+  eq(funde, []);
 });
 test('Seite enthält kein confirm()/alert()/prompt() (in eingebetteten Ansichten gesperrt)', () => assert.ok(!/\b(confirm|alert|prompt)\(/.test(block('ui'))));
 

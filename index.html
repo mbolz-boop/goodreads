@@ -1367,10 +1367,19 @@ function zufallsKandidaten(eintraege, maxSeiten) {
   };
 }
 
-/** Zieht ein Buch; vermeidet (wenn möglich) das zuletzt gezogene. random: () => [0,1) */
-function waehleZufall(kandidaten, random = Math.random, ausserId = null) {
-  const pool = kandidaten.length > 1 ? kandidaten.filter(b => b.id !== ausserId) : kandidaten;
-  return pool.length ? pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))] : null;
+/** Zieht ein Buch ohne Zurücklegen: jedes Buch kommt einmal dran, erst dann beginnt eine neue Runde.
+    gesehen: Set der in dieser Runde gezeigten IDs (wird ergänzt bzw. bei neuer Runde geleert).
+    ausserId: das zuletzt gezeigte Buch, es kommt beim Start einer neuen Runde nicht gleich wieder. random: () => [0,1) */
+function waehleZufall(kandidaten, random = Math.random, gesehen = new Set(), ausserId = null) {
+  if (!kandidaten.length) return null;
+  let pool = kandidaten.filter(b => !gesehen.has(b.id));
+  if (!pool.length) {
+    gesehen.clear();
+    pool = kandidaten.length > 1 ? kandidaten.filter(b => b.id !== ausserId) : kandidaten;
+  }
+  const b = pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))];
+  gesehen.add(b.id);
+  return b;
 }
 
 /** Zahlen des Rückblicks für ein Jahr */
@@ -1579,6 +1588,7 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
   if (!(state.einst.seitenDickeMm > 0)) state.einst.seitenDickeMm = KONFIG.seitenDickeMm;
   delete state.einst.stapelCm; // frühere Einstellung (Buchdicke in cm) gibt es nicht mehr
   state.zufallId = null;
+  state.zufallGesehen = new Set(); // bereits gezeigte Bücher dieser Runde
   if (!Array.isArray(state.dq.keine)) state.dq.keine = [];
   if (!Array.isArray(state.dq.ausgeschlossen)) state.dq.ausgeschlossen = [];
   if (!(state.einst.ausreisserMin >= 1 && state.einst.ausreisserMax > state.einst.ausreisserMin)) { state.einst.ausreisserMin = KONFIG.ausreisserMin; state.einst.ausreisserMax = KONFIG.ausreisserMax; }
@@ -1603,6 +1613,7 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     }
     $('upload-fehler').textContent = '';
     state.datensaetze = datensaetze;
+    state.zufallId = null; state.zufallGesehen.clear();
     state.dateiname = dateiname || '';
     state.speicherWarnung = false;
     if (speichern) {
@@ -1689,22 +1700,7 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     if (document.activeElement !== $('inp-aus-max')) $('inp-aus-max').value = String(state.einst.ausreisserMax);
     if (document.activeElement !== $('inp-zufall-max')) $('inp-zufall-max').value = state.einst.zufallMax === '' ? '' : String(state.einst.zufallMax);
     $('dateiinfo').textContent = state.dateiname ? 'Datei: ' + state.dateiname : '';
-    $('inp-seitendicke').addEventListener('input', e => {
-    const v = parseFloat(String(e.target.value).replace(',', '.'));
-    if (v > 0 && v <= 1) { state.einst.seitenDickeMm = v; speichereEinstellungen(); render(); }
-  });
-  $('inp-zufall-max').addEventListener('input', e => {
-    const v = parseInt(e.target.value, 10);
-    state.einst.zufallMax = v > 0 ? v : '';
-    state.zufallId = null; speichereEinstellungen(); renderZufall();
-  });
-  $('btn-zufall').addEventListener('click', () => {
-    const k = zufallsKandidaten(state.alle, Number(state.einst.zufallMax));
-    const b = waehleZufall(k.kandidaten, Math.random, state.zufallId);
-    state.zufallId = b ? b.id : null; renderZufall();
-  });
-  $('btn-png').addEventListener('click', speicherePNG);
-  document.querySelectorAll('#seg-diagramm button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.modus === state.einst.diagramm)));
+    document.querySelectorAll('#seg-diagramm button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.modus === state.einst.diagramm)));
     document.querySelectorAll('#seg-autoren button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.aut === state.einst.autorenModus)));
     document.querySelectorAll('.zeitraum-zeile').forEach(p => { p.innerHTML = 'Auswertung für: <strong>' + esc(zeitraumText(state.einst.jahr)) + '</strong> (Filter oben)'; });
   }
@@ -2192,7 +2188,9 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     if (!k.gesamt) { el.innerHTML = '<p class="muted">Im Regal <em>to-read</em> liegen keine Bücher.</p>'; return; }
     if (!k.kandidaten.length) { el.innerHTML = '<p class="muted">Kein Buch passt zum Seitenlimit.' + (k.ohneSeitenAusgeschlossen ? ` ${zahl(k.ohneSeitenAusgeschlossen)} ${buecherWort(k.ohneSeitenAusgeschlossen)} ohne Seitenzahl ${k.ohneSeitenAusgeschlossen === 1 ? 'wird' : 'werden'} bei einem Limit nicht berücksichtigt.` : '') + '</p>'; return; }
     const b = k.kandidaten.find(x => x.id === state.zufallId);
-    const info = `${zahl(k.kandidaten.length)} von ${zahl(k.gesamt)} Büchern in „to-read“ kommen infrage${k.ohneSeitenAusgeschlossen ? `; ${zahl(k.ohneSeitenAusgeschlossen)} ohne Seitenzahl ${k.ohneSeitenAusgeschlossen === 1 ? 'wird' : 'werden'} bei einem Limit nicht berücksichtigt` : ''}.`;
+    const limit = Number(state.einst.zufallMax) > 0 ? ` (Limit: höchstens ${zahl(Number(state.einst.zufallMax))} Seiten)` : '';
+    const einziges = k.kandidaten.length === 1 ? ' Es steht nur dieses eine Buch zur Auswahl, deshalb kommt immer dasselbe. Weitere Bücher kommen bei Goodreads ins Regal „to-read“, danach die CSV neu laden.' : '';
+    const info = `${zahl(k.kandidaten.length)} von ${zahl(k.gesamt)} Büchern in „to-read“ kommen infrage${limit}${k.ohneSeitenAusgeschlossen ? `; ${zahl(k.ohneSeitenAusgeschlossen)} ohne Seitenzahl ${k.ohneSeitenAusgeschlossen === 1 ? 'wird' : 'werden'} bei einem Limit nicht berücksichtigt` : ''}.${einziges}${k.kandidaten.length > 1 ? ` Jedes Buch kommt einmal dran, bevor sich eins wiederholt (${zahl(Math.min(state.zufallGesehen.size, k.kandidaten.length))} von ${zahl(k.kandidaten.length)} gezeigt).` : ''}`;
     if (!b) { el.innerHTML = `<p class="muted" style="margin-top:12px">${info}</p>`; return; }
     const minuten = b.seiten != null ? b.seiten * state.einst.minutenProSeite : null;
     el.innerHTML = `<div class="zufall-karte"><div class="titel">${esc(b.titel)}</div><div class="meta">${esc(b.autor)}${b.seiten != null ? ' · ' + zahl(b.seiten) + ' Seiten' : ' · Seitenzahl unbekannt'}</div>
@@ -2564,6 +2562,21 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     const v = parseInt(e.target.value, 10);
     if (v >= 1 && v <= 1000) { state.einst.jahresziel = v; speichereEinstellungen(); render(); }
   });
+  $('inp-seitendicke').addEventListener('input', e => {
+    const v = parseFloat(String(e.target.value).replace(',', '.'));
+    if (v > 0 && v <= 1) { state.einst.seitenDickeMm = v; speichereEinstellungen(); render(); }
+  });
+  $('inp-zufall-max').addEventListener('input', e => {
+    const v = parseInt(e.target.value, 10);
+    state.einst.zufallMax = v > 0 ? v : '';
+    state.zufallId = null; state.zufallGesehen.clear(); speichereEinstellungen(); renderZufall();
+  });
+  $('btn-zufall').addEventListener('click', () => {
+    const k = zufallsKandidaten(state.alle, Number(state.einst.zufallMax));
+    const b = waehleZufall(k.kandidaten, Math.random, state.zufallGesehen, state.zufallId);
+    state.zufallId = b ? b.id : null; renderZufall();
+  });
+  $('btn-png').addEventListener('click', speicherePNG);
   document.querySelectorAll('#seg-diagramm button').forEach(b => b.addEventListener('click', () => {
     state.einst.diagramm = b.dataset.modus; speichereEinstellungen(); render();
   }));
