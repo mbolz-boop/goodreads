@@ -18,8 +18,8 @@ vm.runInContext(block('konfig') + '\n' + block('kern') + `
     waehleZufall, rueckblick, rueckblickSVG, umbrechen, parseCSV, zeilenZuDatensaetzen, normalisiereBuecher,
     normalisiereAlle, filterNachJahr, berechneKennzahlen, jahresAuswertung, formatStunden, formatTageStunden,
     waehleVergleiche, rundeVerhaeltnis, zahl, jahreszielStatus, zeitBisZumLesen, monatsMatrix, wochentage,
-    streaksUndPausen, tageZwischen, median, topGruppen, seitenKlassen, erscheinungsStatistik, bewertungsVergleich,
-    sterneVerteilung, bestenliste, zahlVorzeichen });`, ctx);
+    streaksUndPausen, tageZwischen, median, topGruppen, seitenKlassen, erscheinungsStatistik,
+    sterneVerteilung, bestenliste });`, ctx);
 const K = ctx;
 
 let ok = 0, fail = 0;
@@ -70,7 +70,7 @@ test('Seiten leer → null, nicht 0', () => assert.strictEqual(byTitle('Kupfer &
 test('Seiten 0 → null, nicht 0', () => assert.strictEqual(byTitle('Die Uhrmacherin von Lindau').seiten, null));
 test('Datum leer → kein Jahr', () => eq([byId(900004).jahr, byId(900004).datum], [null, null]));
 test('Date Read und Date Added (YYYY/MM/DD)', () => eq([byId(900005).datum, byId(900005).hinzugefuegt], ['2024-01-20', '2021-11-02']));
-test('Bewertung 0 = nicht bewertet; Average Rating als Zahl', () => eq([byId(900008).bewertung, byId(900008).durchschnitt], [0, 3.7]));
+test('Bewertung 0 = nicht bewertet', () => assert.strictEqual(byId(900008).bewertung, 0));
 test('Erscheinungsjahr: Original Publication Year vor Year Published', () => eq([byId(900022).erscheinungsjahr, byId(900022).erscheinungsjahrQuelle], [1938, 'original']));
 test('Erscheinungsjahr fehlt → null', () => assert.strictEqual(byId(900011).erscheinungsjahr, null));
 test('Verlag leer → leerer String', () => assert.strictEqual(byId(900011).verlag, ''));
@@ -197,25 +197,11 @@ const reg = K.topGruppen(buecher, b => b.regale, opt);
 test('Regale: Standardregale herausgefiltert, roman 7', () => eq([reg.liste[0].name, reg.liste[0].buecher, reg.liste.some(e => ['read', 'to-read'].includes(e.name))], ['roman', 7, false]));
 test('Regale: 2 Bücher ohne eigenes Regal', () => assert.strictEqual(reg.ohne, 2));
 
-const bv = K.bewertungsVergleich(buecher);
-test('Bewertungsvergleich: 19 Bücher, Ø Abweichung +0,03 → „ähnlich“', () => eq([bv.anzahl, bv.mittel.toFixed(3), bv.urteil], [19, '0.028', 'aehnlich']));
-test('5 am deutlichsten besser bewertet', () => eq(bv.besser.map(x => x.buch.titel),
-  ['Der Kartograf und das Meer (Kartograf-Reihe, #2)', 'Salz, Stein und "Sterne"', 'Der Sturm von 1872', 'Kleine Theorie des Regens', 'Die Bienen von Saarow']));
-test('5 am deutlichsten schlechter bewertet', () => eq(bv.schlechter.map(x => x.buch.titel),
-  ['Kupfer & Kreide', 'Die Wellen von Usedom', 'Die Uhrmacherin von Lindau', 'Fernweh in Moll', 'Das Archiv der verlorenen Sommer']));
-test('streng / mild ab ±0,25', () => {
-  const mk = (e, d) => [{ bewertung: e, durchschnitt: d, titel: 'x' }];
-  eq([K.bewertungsVergleich(mk(3, 4)).urteil, K.bewertungsVergleich(mk(5, 4)).urteil, K.bewertungsVergleich(mk(4, 4.2)).urteil], ['streng', 'mild', 'aehnlich']);
-});
-test('Bücher ohne Bewertung oder ohne Goodreads-Schnitt bleiben draußen', () => eq(
-  K.bewertungsVergleich([{ bewertung: 0, durchschnitt: 4, titel: 'a' }, { bewertung: 4, durchschnitt: 0, titel: 'b' }, { bewertung: 4, durchschnitt: null, titel: 'c' }]).anzahl, 0));
 test('Sterne-Verteilung: 0 / 1 / 4 / 9 / 5, 3 unbewertet', () => eq(
   [K.sterneVerteilung(buecher).zaehler, K.sterneVerteilung(buecher).unbewertet], [[0, 1, 4, 9, 5], 3]));
 test('Bestenliste nach Jahr, neuestes zuerst', () => eq(K.bestenliste(buecher).map(g => [g.jahr, g.buecher.length]), [[2026, 1], [2025, 2], [2024, 1], [2023, 1]]));
 test('Bestenliste: 5 Sterne ohne Lesedatum landen am Ende', () => eq(
   K.bestenliste([{ bewertung: 5, jahr: null, datum: null, titel: 'a' }, { bewertung: 5, jahr: 2020, datum: '2020-01-01', titel: 'b' }]).map(g => g.jahr), [2020, 'ohne']));
-test('Vorzeichen-Format: +0,8 / −1,1 / 0', () => eq([K.zahlVorzeichen(0.8), K.zahlVorzeichen(-1.1), K.zahlVorzeichen(0)], ['+0,8', '−1,1', '0']));
-test('Vorzeichen-Format mit 2 Stellen: +0,03 / −0,25 / +0,25', () => eq([K.zahlVorzeichen(0.0279, 2), K.zahlVorzeichen(-0.25, 2), K.zahlVorzeichen(0.25, 2)], ['+0,03', '−0,25', '+0,25']));
 
 console.log('\nSpielerisches');
 const ms = K.meilensteine(buecher, opt);
@@ -358,23 +344,7 @@ test('Übersicht: korrigierte Ausreißer werden separat gezählt', () => {
 test('als „keine Dublette“ markiertes Paar zählt nicht als Problem', () => eq(
   K.datenqualitaet(buecher, buecher, { min: 30, max: 1500, keine: new Set([pk]) }).dubletten, 0));
 
-console.log('\nBewertungsabweichung (Zusatzwerte) und Theme');
-test('Bewertungsvergleich: 19 bewertet, 0 ohne Durchschnitt, 11 höher / 8 niedriger', () => eq(
-  [bv.bewertetGesamt, bv.ohneDurchschnitt, bv.hoeher, bv.niedriger], [19, 0, 11, 8]));
-test('Ø Abstand ohne Vorzeichen 0,43 – trotz Mittel von nur +0,03', () => eq([bv.mittelBetrag.toFixed(2), bv.mittel.toFixed(2)], ['0.43', '0.03']));
-test('Schwelle ±0,25 ist im Ergebnis enthalten', () => assert.strictEqual(bv.schwelle, 0.25));
-test('Genau an der Schwelle: −0,25 → streng, +0,25 → mild, ±0,24 → ähnlich', () => {
-  const u = (e, d) => K.bewertungsVergleich([{ bewertung: e, durchschnitt: d, titel: 'x' }]).urteil;
-  eq([u(4, 4.25), u(4, 3.75), u(4, 4.24), u(4, 3.76)], ['streng', 'mild', 'aehnlich', 'aehnlich']);
-});
-test('Bewertet, aber ohne Average Rating: anzahl 0, ohneDurchschnitt zählt', () => {
-  const r = K.bewertungsVergleich([{ bewertung: 4, durchschnitt: null, titel: 'a' }, { bewertung: 5, durchschnitt: 0, titel: 'b' }, { bewertung: 0, durchschnitt: 4, titel: 'c' }]);
-  eq([r.anzahl, r.bewertetGesamt, r.ohneDurchschnitt, r.mittel], [0, 2, 2, null]);
-});
-test('Beispiel-CSV: Average Rating wird mit Punkt und Komma gelesen', () => {
-  const b = K.normalisiereEintrag({ 'Exclusive Shelf': 'read', Title: 't', 'Average Rating': '4,07', 'My Rating': '5' });
-  assert.strictEqual(b.durchschnitt, 4.07);
-});
+console.log('\nTheme und Robustheit');
 {
   const css = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
   const tokens = blk => Object.fromEntries([...blk.matchAll(/--([a-z0-9-]+):\s*([^;]+);/g)].map(m => [m[1], m[2].trim()]));
@@ -386,6 +356,16 @@ test('Beispiel-CSV: Average Rating wird mit Punkt und Komma gelesen', () => {
   test('Theme: jede Dunkel-Farbe ist auch im Hell-Block definiert', () => assert.ok(Object.keys(tokens(mA[1])).every(k => k in hell)));
   test('Theme: Akzent-Text-Token vorhanden, keine feste Farbe #fff auf Akzent', () => assert.ok('on-accent' in hell && !/background:\s*var\(--accent\)[^}]*color:\s*#fff/.test(css)));
 }
+test('CSV nur mit den 7 Pflichtspalten (ohne Average Rating, Verlag, Regale, Date Added …) lässt sich auswerten', () => {
+  const mini = 'Title,Author,Number of Pages,Date Read,Exclusive Shelf,My Rating,Read Count\n"Buch, eins",A Autor,300,2024/03/01,read,4,1\nBuch zwei,B Autor,0,,read,0,1\nWunsch,C Autor,200,,to-read,0,0\n';
+  const d = K.zeilenZuDatensaetzen(K.parseCSV(mini));
+  const alle = K.normalisiereAlle(d, {}), gelesen = alle.filter(b => b.regal === 'read');
+  const o = { mehrfach: false, minutenProSeite: 2 };
+  const k = K.berechneKennzahlen(gelesen, o);
+  eq([gelesen.length, k.seiten, k.ohneSeiten, k.ohneDatum, k.durchschnittBewertung], [2, 300, 1, 1, 4]);
+  eq([K.topGruppen(gelesen, b => b.verlag ? [b.verlag] : [], o).ohne, K.topGruppen(gelesen, b => b.regale, o).ohne, K.erscheinungsStatistik(gelesen, o, 2026).fehlend, K.zeitBisZumLesen(gelesen).anzahl], [2, 2, 2, 0]);
+  eq([K.findeDubletten(gelesen).offen.length, K.rueckblick(gelesen, 2024, o).anzahl, K.zufallsKandidaten(alle, 0).kandidaten.length], [0, 1, 1]);
+});
 test('Seite enthält kein confirm()/alert()/prompt() (in eingebetteten Ansichten gesperrt)', () => assert.ok(!/\b(confirm|alert|prompt)\(/.test(block('ui'))));
 
 console.log('\nFormatierung');
