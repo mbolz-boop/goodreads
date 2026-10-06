@@ -15,7 +15,7 @@ const ctx = vm.createContext({ Intl });
 vm.runInContext(block('konfig') + '\n' + block('kern') + `
   ;Object.assign(globalThis, { KONFIG, VERGLEICHE, GEBAEUDE, normalisiereEintrag, parseSerie, reihenAuswertung, normalisiereFuerVergleich, findeDubletten, ausreisserListe, datenqualitaet,
     paarSchluessel, leseReihenfolge, meilensteine, durchschnittSeitenProBuch, stapelHoehe, gebaeudeVergleich, zufallsKandidaten,
-    waehleZufall, leselisteUebersicht, rueckblick, rueckblickSVG, umbrechen, parseCSV, zeilenZuDatensaetzen, normalisiereBuecher,
+    waehleZufall, leselisteUebersicht, zaehleRegale, rueckblick, rueckblickSVG, umbrechen, parseCSV, zeilenZuDatensaetzen, normalisiereBuecher,
     normalisiereAlle, filterNachJahr, berechneKennzahlen, jahresAuswertung, formatStunden, formatTageStunden,
     waehleVergleiche, rundeVerhaeltnis, zahl, jahreszielStatus, zeitBisZumLesen, monatsMatrix, wochentage,
     streaksUndPausen, tageZwischen, median, topGruppen, seitenKlassen, erscheinungsStatistik,
@@ -259,6 +259,7 @@ test('Zufall: Nachtragen einer Seitenzahl macht das Buch wählbar', () => {
   const k2 = K.zufallsKandidaten(K.normalisiereAlle(daten, { 'gr:900026': 200 }), 400);
   eq(k2.kandidaten.map(b => b.titel).sort(), ['Ein Jahr in Bergen', 'Morgenrot über Riga']);
 });
+test('Einträge nach Regal: Beispiel-CSV 26 = 22 gelesen + 3 to-read + 1 aktuell', () => eq(K.zaehleRegale(alleE), { gesamt: 26, gelesen: 22, toRead: 3, aktuell: 1 }));
 test('Leseliste mit Limit: Status je Buch (Beispiel-CSV: 350 → passt; 520 → zu lang; ohne Seitenzahl → fällt heraus)', () => {
   const u = K.leselisteUebersicht(alleE, 400);
   eq(u.map(x => [x.buch.titel, x.buch.seiten, x.status]), [['Morgenrot über Riga', 350, 'passt'], ['Die Inseln hinter dem Nebel', 512, 'zuLang'], ['Ein Jahr in Bergen', null, 'ohneSeiten']]);

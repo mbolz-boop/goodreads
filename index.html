@@ -1376,6 +1376,12 @@ function leselisteUebersicht(eintraege, maxSeiten) {
     .sort((a, b) => (a.buch.seiten ?? Infinity) - (b.buch.seiten ?? Infinity) || a.buch.titel.localeCompare(b.buch.titel, 'de'));
 }
 
+/** Zählt die eingelesenen Einträge nach Regal (zeigt, welche Datei geladen ist) */
+function zaehleRegale(eintraege) {
+  const n = r => eintraege.filter(b => b.regal === r).length;
+  return { gesamt: eintraege.length, gelesen: n('read'), toRead: n('to-read'), aktuell: n('currently-reading') };
+}
+
 /** Zieht ein Buch ohne Zurücklegen: jedes Buch kommt einmal dran, erst dann beginnt eine neue Runde.
     gesehen: Set der in dieser Runde gezeigten IDs (wird ergänzt bzw. bei neuer Runde geleert).
     ausserId: das zuletzt gezeigte Buch, es kommt beim Start einer neuen Runde nicht gleich wieder. random: () => [0,1) */
@@ -1562,6 +1568,7 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
   const SPEICHER = {
     csv: 'lesetracker.csv',
     dateiname: 'lesetracker.dateiname',
+    dateidatum: 'lesetracker.dateidatum',   // Änderungsdatum der geladenen Datei (ms)
     seiten: 'lesetracker.seiten',
     einstellungen: 'lesetracker.einstellungen',
     dq: 'lesetracker.datenqualitaet',   // {keine: [Paarschlüssel], ausgeschlossen: [Buch-IDs]}
@@ -1607,7 +1614,7 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
   function opt() { return { mehrfach: state.einst.mehrfach, minutenProSeite: state.einst.minutenProSeite }; }
 
   /* ---------- Laden ---------- */
-  function ladeCSV(text, dateiname, speichern) {
+  function ladeCSV(text, dateiname, speichern, geaendert = null) {
     let datensaetze;
     try {
       datensaetze = zeilenZuDatensaetzen(parseCSV(text));
@@ -1625,9 +1632,10 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     state.datensaetze = datensaetze;
     state.zufallId = null; state.zufallGesehen.clear();
     state.dateiname = dateiname || '';
+    state.dateiDatum = geaendert > 0 ? Number(geaendert) : null;
     state.speicherWarnung = false;
     if (speichern) {
-      const ok = ls.set(SPEICHER.csv, text) && ls.set(SPEICHER.dateiname, state.dateiname);
+      const ok = ls.set(SPEICHER.csv, text) && ls.set(SPEICHER.dateiname, state.dateiname) && ls.set(SPEICHER.dateidatum, String(state.dateiDatum ?? ''));
       if (!ok) { state.speicherWarnung = true; ls.del(SPEICHER.csv); }
     }
     zeigeUpload(false); // erst einblenden, damit das Diagramm seine Breite kennt
@@ -1638,7 +1646,7 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
   function liesDatei(datei) {
     if (!datei) return;
     const r = new FileReader();
-    r.onload = () => ladeCSV(String(r.result), datei.name, true);
+    r.onload = () => ladeCSV(String(r.result), datei.name, true, datei.lastModified);
     r.onerror = () => { $('upload-fehler').textContent = 'Die Datei konnte nicht gelesen werden.'; };
     r.readAsText(datei, 'utf-8');
   }
@@ -1709,7 +1717,11 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     if (document.activeElement !== $('inp-aus-min')) $('inp-aus-min').value = String(state.einst.ausreisserMin);
     if (document.activeElement !== $('inp-aus-max')) $('inp-aus-max').value = String(state.einst.ausreisserMax);
     if (document.activeElement !== $('inp-zufall-max')) $('inp-zufall-max').value = state.einst.zufallMax === '' ? '' : String(state.einst.zufallMax);
-    $('dateiinfo').textContent = state.dateiname ? 'Datei: ' + state.dateiname : '';
+    const z = zaehleRegale(state.alle);
+    const stand = state.dateiDatum ? ` (Stand ${datumDE(isoDatum(new Date(state.dateiDatum)))})` : '';
+    $('dateiinfo').textContent = state.dateiname
+      ? `Datei: ${state.dateiname}${stand} · ${zahl(z.gesamt)} Einträge: ${zahl(z.gelesen)} gelesen, ${zahl(z.toRead)} to-read, ${zahl(z.aktuell)} aktuell`
+      : '';
     document.querySelectorAll('#seg-diagramm button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.modus === state.einst.diagramm)));
     document.querySelectorAll('#seg-autoren button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.aut === state.einst.autorenModus)));
     document.querySelectorAll('.zeitraum-zeile').forEach(p => { p.innerHTML = 'Auswertung für: <strong>' + esc(zeitraumText(state.einst.jahr)) + '</strong> (Filter oben)'; });
@@ -2560,7 +2572,7 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
         ? [{ label: 'Abbrechen', wert: null }, { label: 'Nur CSV löschen', wert: 'csv' }, { label: 'Alles löschen', wert: 'alles', klasse: 'danger' }]
         : [{ label: 'Abbrechen', wert: null }, { label: 'CSV löschen', wert: 'csv', klasse: 'danger' }]);
     if (!antwort) return;
-    ls.del(SPEICHER.csv); ls.del(SPEICHER.dateiname);
+    ls.del(SPEICHER.csv); ls.del(SPEICHER.dateiname); ls.del(SPEICHER.dateidatum);
     if (antwort === 'alles') {
       ls.del(SPEICHER.seiten); ls.del(SPEICHER.dq);
       state.overrides = {}; state.dq = { keine: [], ausgeschlossen: [] };
@@ -2704,7 +2716,7 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
 
   /* ---------- Start ---------- */
   const gespeichert = ls.get(SPEICHER.csv);
-  if (gespeichert) ladeCSV(gespeichert, ls.get(SPEICHER.dateiname) || '', false);
+  if (gespeichert) ladeCSV(gespeichert, ls.get(SPEICHER.dateiname) || '', false, Number(ls.get(SPEICHER.dateidatum)) || null);
   else zeigeUpload(true);
 })();
 </script>
