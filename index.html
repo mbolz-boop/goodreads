@@ -113,7 +113,7 @@ const VERGLEICHE = [
   --shadow: 0 1px 2px rgba(0,0,0,.05), 0 2px 8px rgba(0,0,0,.04);
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     color-scheme: dark;
     --bg: #121211;
     --surface: #1a1a19;
@@ -138,6 +138,31 @@ const VERGLEICHE = [
     --shadow: none;
   }
 }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121211;
+  --surface: #1a1a19;
+  --surface-2: #242422;
+  --border: #33322f;
+  --text: #f3f2ee;
+  --text-2: #c3c2b7;
+  --text-3: #a09e95;
+  --accent: #5d9ef0;
+  --on-accent: #0b1b33;
+  --accent-soft: #1f3350;
+  --bar: #3987e5;
+  --bar-dim: #24456e;
+  --grid: #2c2b28;
+  --warn-bg: #2f2612;
+  --warn-border: #7a5a14;
+  --warn-text: #f1d48f;
+  --danger: #f2867f;
+  --ok: #6fcf8f;
+  --hm0: #262624; --hm1: #1d3555; --hm2: #25528a; --hm3: #3477cc; --hm4: #6aa6f0;
+  --hm-t1: #f3f2ee; --hm-t2: #f3f2ee; --hm-t3: #ffffff; --hm-t4: #0b0b0b;
+  --shadow: none;
+}
+[hidden] { display: none !important; }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {
@@ -371,6 +396,14 @@ details summary { cursor: pointer; margin: 12px 0 8px; color: var(--text-2); }
   a { color: inherit; text-decoration: none; }
   .tooltip { display: none !important; }
 }
+/* Bestätigungsdialog (confirm() ist in eingebetteten Ansichten gesperrt) */
+.dialog-hintergrund { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
+.dialog { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; max-width: 420px; width: 100%; box-shadow: 0 8px 32px rgba(0,0,0,.3); }
+.dialog h2 { margin: 0 0 8px; }
+.dialog p { margin: 0 0 16px; color: var(--text-2); }
+.dialog-aktionen { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+button.danger { color: var(--danger); }
+.png-status { font-size: .85rem; color: var(--text-2); margin: 8px 0 0; text-align: center; min-height: 1.2em; }
 footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top: 32px; }
 </style>
 </head>
@@ -550,6 +583,8 @@ footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top
         <h2>Meine Bewertung vs. Goodreads-Durchschnitt</h2>
         <p class="erklaerung">Nur Bücher, die du selbst bewertet hast (mindestens 1 Stern). Abweichung = deine Sterne minus Goodreads-Durchschnitt.</p>
         <div class="kpis" id="bw-kpis"></div>
+        <div class="viz" id="bw-skala" style="margin-top:12px"></div>
+        <p class="chart-hinweis" id="bw-hinweis"></p>
         <div class="zwei-spalten">
           <div><h3>Deutlich besser als der Durchschnitt</h3><ul class="buchliste" id="bw-besser"></ul></div>
           <div><h3>Deutlich schlechter als der Durchschnitt</h3><ul class="buchliste" id="bw-schlechter"></ul></div>
@@ -621,6 +656,7 @@ footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top
         </div>
         <p class="erklaerung">Der Rückblick zeigt immer das Vorjahr, unabhängig vom Zeitraum-Filter. Das Bild wird lokal im Browser erzeugt.</p>
         <div class="wrapped" id="wrapped"></div>
+        <p class="png-status" id="png-status" role="status"></p>
       </section>
     </div>
 
@@ -657,6 +693,14 @@ footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top
       </section>
     </div>
   </main>
+
+  <div class="dialog-hintergrund" id="dialog" hidden>
+    <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="dialog-titel" aria-describedby="dialog-text">
+      <h2 id="dialog-titel"></h2>
+      <p id="dialog-text"></p>
+      <div class="dialog-aktionen" id="dialog-aktionen"></div>
+    </div>
+  </div>
 
   <footer>Läuft komplett lokal · keine Server, kein Tracking · Daten liegen im localStorage dieses Browsers</footer>
 </div>
@@ -1083,11 +1127,18 @@ function bewertungsVergleich(buecher, schwelle = 0.25) {
   const l = buecher.filter(b => b.bewertung > 0 && b.durchschnitt > 0)
     .map(b => ({ buch: b, diff: b.bewertung - b.durchschnitt }));
   const n = l.length;
+  const bewertetGesamt = buecher.filter(b => b.bewertung > 0).length;
   const summe = f => l.reduce((a, x) => a + f(x), 0);
   const mittel = n ? summe(x => x.diff) / n : null;
   const nachTitel = (a, b) => a.buch.titel.localeCompare(b.buch.titel, 'de');
   return {
     anzahl: n,
+    bewertetGesamt,                              // alle Bücher mit eigener Bewertung
+    ohneDurchschnitt: bewertetGesamt - n,        // bewertet, aber ohne Average Rating in der CSV
+    hoeher: l.filter(x => x.diff > 0).length,    // du bewertest höher als der Durchschnitt
+    niedriger: l.filter(x => x.diff < 0).length,
+    mittelBetrag: n ? summe(x => Math.abs(x.diff)) / n : null, // durchschnittlicher Abstand ohne Vorzeichen
+    schwelle,
     meine: n ? summe(x => x.buch.bewertung) / n : null,
     goodreads: n ? summe(x => x.buch.durchschnitt) / n : null,
     mittel,
@@ -1359,11 +1410,13 @@ function rueckblickSVG(r, vergleich) {
 /* ---------- Formatierung (deutsch) ---------- */
 const NF0 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
 const NF1 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 });
+const NF2 = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const NFV = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1, signDisplay: 'exceptZero' });
+const NFV2 = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: 'exceptZero' });
 function zahl(n) { return NF0.format(n); }
 function zahl1(n) { return NF1.format(n); }
 /** mit Vorzeichen: +0,8 / −1,2 */
-function zahlVorzeichen(n) { return NFV.format(n).replace('-', '−'); }
+function zahlVorzeichen(n, stellen = 1) { return (stellen === 2 ? NFV2 : NFV).format(n).replace('-', '−'); }
 
 /** Minuten → "1.234 Std." */
 function formatStunden(minuten) {
@@ -1881,19 +1934,41 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     ].filter(Boolean).join(' ');
   }
 
+  /* Skala von −1 bis +1 Sterne: Zonen „streng“, „ähnlich“, „mild“ und die eigene mittlere Abweichung als Marke */
+  function skalaSVG(el, mittel, schwelle) {
+    const W = Math.max(260, Math.round(el.clientWidth || 600)), H = 62, m = 24, y = 26, h = 10;
+    const x = v => m + (Math.max(-1, Math.min(1, v)) + 1) / 2 * (W - 2 * m);
+    let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Skala der mittleren Abweichung von minus 1 bis plus 1 Stern, deine Abweichung: ${zahlVorzeichen(mittel, 2)}">`;
+    s += `<rect x="${m}" y="${y}" width="${W - 2 * m}" height="${h}" rx="5" fill="var(--surface-2)"/>`;
+    s += `<rect x="${x(-schwelle)}" y="${y}" width="${x(schwelle) - x(-schwelle)}" height="${h}" fill="var(--border)"/>`;
+    [[-1, 'start', '−1'], [0, 'middle', '0'], [1, 'end', '+1']].forEach(([v, a, t]) => { s += `<text class="axis-text" x="${x(v) + (v === -1 ? -m + 4 : v === 1 ? m - 4 : 0)}" y="${H - 6}" text-anchor="${a}">${t}</text>`; });
+    s += `<text class="axis-text" x="${(m + x(-schwelle)) / 2}" y="16" text-anchor="middle">streng</text>`;
+    s += `<text class="axis-text" x="${x(0)}" y="16" text-anchor="middle">ähnlich</text>`;
+    s += `<text class="axis-text" x="${(x(schwelle) + W - m) / 2}" y="16" text-anchor="middle">mild</text>`;
+    s += `<circle cx="${x(mittel)}" cy="${y + h / 2}" r="8" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>`;
+    el.innerHTML = s + '</svg>';
+  }
+
   /* ---------- Bewertungen ---------- */
   function renderBewertungen(g, o) {
     // Vergleich mit Goodreads
     const v = bewertungsVergleich(g);
     const urteilText = { streng: 'strenger als der Durchschnitt', mild: 'milder als der Durchschnitt', aehnlich: 'etwa wie der Durchschnitt' };
+    const zwei = x => zahlVorzeichen(x, 2);
     if (v.anzahl) {
       $('bw-kpis').innerHTML = [
         kpi('Ø deine Bewertung', ca1(v.meine) + ' ★', `aus ${zahl(v.anzahl)} ${v.anzahl === 1 ? 'Bewertung' : 'Bewertungen'}`),
         kpi('Ø Goodreads (dieselben Bücher)', ca1(v.goodreads) + ' ★', ''),
-        kpi('Ø Abweichung', `${zahlVorzeichen(Math.round(v.mittel * 10) / 10)} ★`, `Du bewertest ${urteilText[v.urteil]} (ab ±0,25 gilt „streng“ bzw. „mild“).`, 'hero'),
+        kpi('Ø Abweichung mit Vorzeichen', `${zwei(v.mittel)} ★`, `Du bewertest ${urteilText[v.urteil]}. „Streng“ gilt ab ${zahlVorzeichen(-v.schwelle, 2)}, „mild“ ab ${zahlVorzeichen(v.schwelle, 2)} Sternen. Höhere und niedrigere Bewertungen gleichen sich dabei aus.`, 'hero'),
+        kpi('Ø Abstand ohne Vorzeichen', `${NF2.format(v.mittelBetrag)} ★`, `So weit liegst du im Schnitt vom Goodreads-Durchschnitt entfernt: bei ${zahl(v.hoeher)} ${v.hoeher === 1 ? 'Buch' : 'Büchern'} höher, bei ${zahl(v.niedriger)} niedriger.`, 'hero'),
       ].join('');
+      skalaSVG($('bw-skala'), v.mittel, v.schwelle);
+      $('bw-hinweis').textContent = v.ohneDurchschnitt ? `${ohneText(v.ohneDurchschnitt, 'bewertet, aber ohne Goodreads-Durchschnitt (Average Rating)')}` : '';
     } else {
-      $('bw-kpis').innerHTML = '<p class="muted">Keine bewerteten Bücher mit Goodreads-Durchschnitt im gewählten Zeitraum.</p>';
+      $('bw-kpis').innerHTML = v.bewertetGesamt
+        ? `<p class="muted">Du hast ${zahl(v.bewertetGesamt)} ${buecherWort(v.bewertetGesamt)} bewertet, aber keines davon hat einen Goodreads-Durchschnitt (Spalte <em>Average Rating</em>) in der CSV. Ohne diesen Wert ist kein Vergleich möglich.</p>`
+        : '<p class="muted">Im gewählten Zeitraum hast du kein Buch bewertet (0 Sterne zählt als nicht bewertet).</p>';
+      $('bw-skala').innerHTML = ''; $('bw-hinweis').textContent = '';
     }
     const li = x => `<li><span class="wert">${zahlVorzeichen(Math.round(x.diff * 10) / 10)} ★</span><span class="titel">${esc(x.buch.titel)}</span><span class="meta">${esc(x.buch.autor)} · du ${x.buch.bewertung} ★, Goodreads ${zahl1(Math.round(x.buch.durchschnitt * 100) / 100)} ★</span></li>`;
     $('bw-besser').innerHTML = v.besser.map(li).join('') || '<li class="muted">Keine</li>';
@@ -2027,20 +2102,35 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     $('btn-png').disabled = false;
   }
 
+  function pngStatus(text) { $('png-status').textContent = text; }
+
   function speicherePNG() {
     if (!rueckblickDaten) return;
     const { svg, jahr } = rueckblickDaten;
+    const dateiname = `lesejahr-${jahr}.png`;
     const img = new Image();
     img.onload = () => {
       const c = document.createElement('canvas');
       c.width = 1080; c.height = 1350;
       c.getContext('2d').drawImage(img, 0, 0, 1080, 1350);
-      const a = document.createElement('a');
-      a.href = c.toDataURL('image/png');
-      a.download = `lesejahr-${jahr}.png`;
-      document.body.appendChild(a); a.click(); a.remove();
+      c.toBlob(async blob => {
+        if (!blob) { pngStatus('Das Bild konnte nicht erzeugt werden.'); return; }
+        // In eingebetteten Ansichten (Artifact) sind Download-Links gesperrt: dort speichert die downloads-Fähigkeit.
+        let dl = null;
+        try { dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null; } catch (e) { dl = null; }
+        if (dl) {
+          try { await dl.save({ filename: dateiname, data: blob }); pngStatus('Bild gespeichert.'); }
+          catch (e) { pngStatus(e && e.code === 'declined' ? 'Speichern abgebrochen.' : 'Das Bild konnte nicht gespeichert werden.'); }
+          return;
+        }
+        const a = document.createElement('a');
+        a.href = c.toDataURL('image/png');
+        a.download = dateiname;
+        document.body.appendChild(a); a.click(); a.remove();
+        pngStatus('Bild wird heruntergeladen.');
+      }, 'image/png');
     };
-    img.onerror = () => alert('Das Bild konnte nicht erzeugt werden.');
+    img.onerror = () => pngStatus('Das Bild konnte nicht erzeugt werden.');
     img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
   }
 
@@ -2290,11 +2380,51 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
   });
 
   $('btn-neu').addEventListener('click', () => zeigeUpload(true));
-  $('btn-reset').addEventListener('click', () => {
-    if (!confirm('Gespeicherte CSV aus dem Browser löschen?')) return;
-    ls.del(SPEICHER.csv); ls.del(SPEICHER.dateiname);
+  // Eigener Dialog: gibt den Wert der gewählten Aktion zurück, bei Escape null
+  function frage(titel, text, aktionen) {
+    return new Promise(resolve => {
+      const d = $('dialog'), box = $('dialog-aktionen'), vorher = document.activeElement;
+      $('dialog-titel').textContent = titel;
+      $('dialog-text').textContent = text;
+      box.innerHTML = '';
+      const knoepfe = aktionen.map(a => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.textContent = a.label; if (a.klasse) b.className = a.klasse;
+        b.addEventListener('click', () => zu(a.wert));
+        box.appendChild(b);
+        return b;
+      });
+      function taste(e) {
+        if (e.key === 'Escape') { e.preventDefault(); zu(null); }
+        else if (e.key === 'Tab') { // Fokus bleibt im Dialog
+          const i = knoepfe.indexOf(document.activeElement);
+          const n = e.shiftKey ? (i <= 0 ? knoepfe.length - 1 : i - 1) : (i + 1) % knoepfe.length;
+          e.preventDefault(); knoepfe[n].focus();
+        }
+      }
+      function zu(wert) {
+        d.hidden = true; document.removeEventListener('keydown', taste);
+        if (vorher && vorher.focus) vorher.focus();
+        resolve(wert);
+      }
+      d.hidden = false;
+      document.addEventListener('keydown', taste);
+      knoepfe[0].focus(); // die harmlose Aktion zuerst
+    });
+  }
+
+  $('btn-reset').addEventListener('click', async () => {
     const hatManuelles = Object.keys(state.overrides).length || state.dq.keine.length || state.dq.ausgeschlossen.length;
-    if (hatManuelles && confirm('Auch deine manuellen Angaben löschen (nachgetragene Seitenzahlen, Dubletten-Markierungen)?')) {
+    const antwort = await frage('Daten zurücksetzen',
+      hatManuelles
+        ? 'Die gespeicherte CSV wird aus diesem Browser gelöscht. Deine manuellen Angaben (nachgetragene Seitenzahlen, Dubletten-Markierungen) kannst du behalten oder mitlöschen.'
+        : 'Die gespeicherte CSV wird aus diesem Browser gelöscht.',
+      hatManuelles
+        ? [{ label: 'Abbrechen', wert: null }, { label: 'Nur CSV löschen', wert: 'csv' }, { label: 'Alles löschen', wert: 'alles', klasse: 'danger' }]
+        : [{ label: 'Abbrechen', wert: null }, { label: 'CSV löschen', wert: 'csv', klasse: 'danger' }]);
+    if (!antwort) return;
+    ls.del(SPEICHER.csv); ls.del(SPEICHER.dateiname);
+    if (antwort === 'alles') {
       ls.del(SPEICHER.seiten); ls.del(SPEICHER.dq);
       state.overrides = {}; state.dq = { keine: [], ausgeschlossen: [] };
     }

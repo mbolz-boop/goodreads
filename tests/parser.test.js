@@ -13,7 +13,7 @@ const block = id => {
 };
 const ctx = vm.createContext({ Intl });
 vm.runInContext(block('konfig') + '\n' + block('kern') + `
-  ;Object.assign(globalThis, { KONFIG, VERGLEICHE, GEBAEUDE, normalisiereFuerVergleich, findeDubletten, ausreisserListe, datenqualitaet,
+  ;Object.assign(globalThis, { KONFIG, VERGLEICHE, GEBAEUDE, normalisiereEintrag, normalisiereFuerVergleich, findeDubletten, ausreisserListe, datenqualitaet,
     paarSchluessel, leseReihenfolge, meilensteine, stapelHoehe, gebaeudeVergleich, zufallsKandidaten,
     waehleZufall, rueckblick, rueckblickSVG, umbrechen, parseCSV, zeilenZuDatensaetzen, normalisiereBuecher,
     normalisiereAlle, filterNachJahr, berechneKennzahlen, jahresAuswertung, formatStunden, formatTageStunden,
@@ -215,6 +215,7 @@ test('Bestenliste nach Jahr, neuestes zuerst', () => eq(K.bestenliste(buecher).m
 test('Bestenliste: 5 Sterne ohne Lesedatum landen am Ende', () => eq(
   K.bestenliste([{ bewertung: 5, jahr: null, datum: null, titel: 'a' }, { bewertung: 5, jahr: 2020, datum: '2020-01-01', titel: 'b' }]).map(g => g.jahr), [2020, 'ohne']));
 test('Vorzeichen-Format: +0,8 / −1,1 / 0', () => eq([K.zahlVorzeichen(0.8), K.zahlVorzeichen(-1.1), K.zahlVorzeichen(0)], ['+0,8', '−1,1', '0']));
+test('Vorzeichen-Format mit 2 Stellen: +0,03 / −0,25 / +0,25', () => eq([K.zahlVorzeichen(0.0279, 2), K.zahlVorzeichen(-0.25, 2), K.zahlVorzeichen(0.25, 2)], ['+0,03', '−0,25', '+0,25']));
 
 console.log('\nSpielerisches');
 const ms = K.meilensteine(buecher, opt);
@@ -356,6 +357,36 @@ test('Übersicht: korrigierte Ausreißer werden separat gezählt', () => {
 });
 test('als „keine Dublette“ markiertes Paar zählt nicht als Problem', () => eq(
   K.datenqualitaet(buecher, buecher, { min: 30, max: 1500, keine: new Set([pk]) }).dubletten, 0));
+
+console.log('\nBewertungsabweichung (Zusatzwerte) und Theme');
+test('Bewertungsvergleich: 19 bewertet, 0 ohne Durchschnitt, 11 höher / 8 niedriger', () => eq(
+  [bv.bewertetGesamt, bv.ohneDurchschnitt, bv.hoeher, bv.niedriger], [19, 0, 11, 8]));
+test('Ø Abstand ohne Vorzeichen 0,43 – trotz Mittel von nur +0,03', () => eq([bv.mittelBetrag.toFixed(2), bv.mittel.toFixed(2)], ['0.43', '0.03']));
+test('Schwelle ±0,25 ist im Ergebnis enthalten', () => assert.strictEqual(bv.schwelle, 0.25));
+test('Genau an der Schwelle: −0,25 → streng, +0,25 → mild, ±0,24 → ähnlich', () => {
+  const u = (e, d) => K.bewertungsVergleich([{ bewertung: e, durchschnitt: d, titel: 'x' }]).urteil;
+  eq([u(4, 4.25), u(4, 3.75), u(4, 4.24), u(4, 3.76)], ['streng', 'mild', 'aehnlich', 'aehnlich']);
+});
+test('Bewertet, aber ohne Average Rating: anzahl 0, ohneDurchschnitt zählt', () => {
+  const r = K.bewertungsVergleich([{ bewertung: 4, durchschnitt: null, titel: 'a' }, { bewertung: 5, durchschnitt: 0, titel: 'b' }, { bewertung: 0, durchschnitt: 4, titel: 'c' }]);
+  eq([r.anzahl, r.bewertetGesamt, r.ohneDurchschnitt, r.mittel], [0, 2, 2, null]);
+});
+test('Beispiel-CSV: Average Rating wird mit Punkt und Komma gelesen', () => {
+  const b = K.normalisiereEintrag({ 'Exclusive Shelf': 'read', Title: 't', 'Average Rating': '4,07', 'My Rating': '5' });
+  assert.strictEqual(b.durchschnitt, 4.07);
+});
+{
+  const css = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
+  const tokens = blk => Object.fromEntries([...blk.matchAll(/--([a-z0-9-]+):\s*([^;]+);/g)].map(m => [m[1], m[2].trim()]));
+  const hell = tokens(css.slice(css.indexOf(':root {'), css.indexOf('@media (prefers-color-scheme: dark)')));
+  const mA = /@media \(prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme="light"\]\) \{([\s\S]*?)\n  \}\n\}/.exec(css);
+  const mB = /:root\[data-theme="dark"\] \{([\s\S]*?)\n\}/.exec(css);
+  test('Theme: beide Dunkel-Blöcke vorhanden und mit color-scheme: dark', () => assert.ok(mA && mB && mA[1].includes('color-scheme: dark') && mB[1].includes('color-scheme: dark')));
+  test('Theme: beide Dunkel-Blöcke definieren dieselben Farben', () => eq(tokens(mA[1]), tokens(mB[1])));
+  test('Theme: jede Dunkel-Farbe ist auch im Hell-Block definiert', () => assert.ok(Object.keys(tokens(mA[1])).every(k => k in hell)));
+  test('Theme: Akzent-Text-Token vorhanden, keine feste Farbe #fff auf Akzent', () => assert.ok('on-accent' in hell && !/background:\s*var\(--accent\)[^}]*color:\s*#fff/.test(css)));
+}
+test('Seite enthält kein confirm()/alert()/prompt() (in eingebetteten Ansichten gesperrt)', () => assert.ok(!/\b(confirm|alert|prompt)\(/.test(block('ui'))));
 
 console.log('\nFormatierung');
 test('deutsche Tausenderpunkte', () => assert.strictEqual(K.zahl(1234567), '1.234.567'));
