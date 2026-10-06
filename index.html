@@ -1367,6 +1367,15 @@ function zufallsKandidaten(eintraege, maxSeiten) {
   };
 }
 
+/** Alle Bücher von to-read mit Status zum Seitenlimit, aufsteigend nach Seitenzahl (ohne Seitenzahl zuletzt).
+    status: 'passt' | 'zuLang' (über dem Limit) | 'ohneSeiten' (fällt bei einem Limit heraus) */
+function leselisteUebersicht(eintraege, maxSeiten) {
+  const limit = maxSeiten > 0;
+  return eintraege.filter(b => b.regal === 'to-read')
+    .map(b => ({ buch: b, status: !limit ? 'passt' : b.seiten == null ? 'ohneSeiten' : b.seiten <= maxSeiten ? 'passt' : 'zuLang' }))
+    .sort((a, b) => (a.buch.seiten ?? Infinity) - (b.buch.seiten ?? Infinity) || a.buch.titel.localeCompare(b.buch.titel, 'de'));
+}
+
 /** Zieht ein Buch ohne Zurücklegen: jedes Buch kommt einmal dran, erst dann beginnt eine neue Runde.
     gesehen: Set der in dieser Runde gezeigten IDs (wird ergänzt bzw. bei neuer Runde geleert).
     ausserId: das zuletzt gezeigte Buch, es kommt beim Start einer neuen Runde nicht gleich wieder. random: () => [0,1) */
@@ -1589,6 +1598,7 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
   delete state.einst.stapelCm; // frühere Einstellung (Buchdicke in cm) gibt es nicht mehr
   state.zufallId = null;
   state.zufallGesehen = new Set(); // bereits gezeigte Bücher dieser Runde
+  state.zufallListeOffen = false;  // Liste der Leseliste ein-/ausgeklappt
   if (!Array.isArray(state.dq.keine)) state.dq.keine = [];
   if (!Array.isArray(state.dq.ausgeschlossen)) state.dq.ausgeschlossen = [];
   if (!(state.einst.ausreisserMin >= 1 && state.einst.ausreisserMax > state.einst.ausreisserMin)) { state.einst.ausreisserMin = KONFIG.ausreisserMin; state.einst.ausreisserMax = KONFIG.ausreisserMax; }
@@ -2182,20 +2192,31 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
   }
 
   function renderZufall() {
-    const k = zufallsKandidaten(state.alle, Number(state.einst.zufallMax));
+    const maxSeiten = Number(state.einst.zufallMax);
+    const k = zufallsKandidaten(state.alle, maxSeiten);
     const el = $('zufall');
     $('btn-zufall').disabled = !k.kandidaten.length;
     if (!k.gesamt) { el.innerHTML = '<p class="muted">Im Regal <em>to-read</em> liegen keine Bücher.</p>'; return; }
-    if (!k.kandidaten.length) { el.innerHTML = '<p class="muted">Kein Buch passt zum Seitenlimit.' + (k.ohneSeitenAusgeschlossen ? ` ${zahl(k.ohneSeitenAusgeschlossen)} ${buecherWort(k.ohneSeitenAusgeschlossen)} ohne Seitenzahl ${k.ohneSeitenAusgeschlossen === 1 ? 'wird' : 'werden'} bei einem Limit nicht berücksichtigt.` : '') + '</p>'; return; }
+    const limitAktiv = maxSeiten > 0;
+    // Überblick über die ganze Leseliste: warum kommt ein Buch infrage oder nicht
+    const uebersicht = leselisteUebersicht(state.alle, maxSeiten);
+    const statusText = { passt: limitAktiv ? 'passt zum Limit' : 'kommt infrage', zuLang: `über dem Limit (${zahl(maxSeiten)} Seiten)`, ohneSeiten: 'ohne Seitenzahl, fällt bei einem Limit heraus' };
+    const listeHtml = state.zufallListeOffen
+      ? `<ul class="buchliste" style="margin-top:8px">${uebersicht.map(u => `<li${u.status === 'passt' ? '' : ' style="opacity:.6"'}><span class="wert">${u.buch.seiten != null ? zahl(u.buch.seiten) + ' Seiten' : '–'}</span><span class="titel">${esc(u.buch.basisTitel || u.buch.titel)}</span><span class="meta">${esc(u.buch.autor)} · ${statusText[u.status]}</span></li>`).join('')}</ul>` : '';
+    const werkzeuge = `<p class="small" style="margin:10px 0 0;display:flex;flex-wrap:wrap;gap:8px"><button type="button" data-zufall="liste">${state.zufallListeOffen ? 'Leseliste ausblenden' : `Alle ${zahl(k.gesamt)} Bücher der Leseliste anzeigen`}</button>${limitAktiv ? '<button type="button" data-zufall="limit-aus">Limit entfernen</button>' : ''}</p>${listeHtml}`;
+    if (!k.kandidaten.length) {
+      el.innerHTML = `<p class="muted">Kein Buch passt zum Seitenlimit von ${zahl(maxSeiten)} Seiten.${k.ohneSeitenAusgeschlossen ? ` ${zahl(k.ohneSeitenAusgeschlossen)} ${buecherWort(k.ohneSeitenAusgeschlossen)} ohne Seitenzahl ${k.ohneSeitenAusgeschlossen === 1 ? 'wird' : 'werden'} bei einem Limit nicht berücksichtigt.` : ''}</p>${werkzeuge}`;
+      return;
+    }
     const b = k.kandidaten.find(x => x.id === state.zufallId);
-    const limit = Number(state.einst.zufallMax) > 0 ? ` (Limit: höchstens ${zahl(Number(state.einst.zufallMax))} Seiten)` : '';
-    const einziges = k.kandidaten.length === 1 ? ' Es steht nur dieses eine Buch zur Auswahl, deshalb kommt immer dasselbe. Weitere Bücher kommen bei Goodreads ins Regal „to-read“, danach die CSV neu laden.' : '';
+    const limit = limitAktiv ? ` (Limit: höchstens ${zahl(maxSeiten)} Seiten)` : '';
+    const einziges = k.kandidaten.length === 1 ? (k.gesamt > 1 ? ' Mit diesem Limit passt nur dieses Buch, deshalb kommt immer dasselbe.' : ' Es steht nur dieses eine Buch zur Auswahl, deshalb kommt immer dasselbe. Weitere Bücher kommen bei Goodreads ins Regal „to-read“, danach die CSV neu laden.') : '';
     const info = `${zahl(k.kandidaten.length)} von ${zahl(k.gesamt)} Büchern in „to-read“ kommen infrage${limit}${k.ohneSeitenAusgeschlossen ? `; ${zahl(k.ohneSeitenAusgeschlossen)} ohne Seitenzahl ${k.ohneSeitenAusgeschlossen === 1 ? 'wird' : 'werden'} bei einem Limit nicht berücksichtigt` : ''}.${einziges}${k.kandidaten.length > 1 ? ` Jedes Buch kommt einmal dran, bevor sich eins wiederholt (${zahl(Math.min(state.zufallGesehen.size, k.kandidaten.length))} von ${zahl(k.kandidaten.length)} gezeigt).` : ''}`;
-    if (!b) { el.innerHTML = `<p class="muted" style="margin-top:12px">${info}</p>`; return; }
+    if (!b) { el.innerHTML = `<p class="muted" style="margin-top:12px">${info}</p>${werkzeuge}`; return; }
     const minuten = b.seiten != null ? b.seiten * state.einst.minutenProSeite : null;
     el.innerHTML = `<div class="zufall-karte"><div class="titel">${esc(b.titel)}</div><div class="meta">${esc(b.autor)}${b.seiten != null ? ' · ' + zahl(b.seiten) + ' Seiten' : ' · Seitenzahl unbekannt'}</div>
       <div class="dauer">${minuten != null ? `Geschätzte Lesedauer: ca. ${formatStunden(minuten)} ${minuten >= 24 * 60 ? ` (${formatTageStunden(minuten)})` : ''} bei ${zahl1(state.einst.minutenProSeite)} Min. pro Seite` : 'Lesedauer nicht schätzbar, ohne Seitenzahl.'}</div></div>
-      <p class="muted small" style="margin-top:10px">${info}</p>`;
+      <p class="muted small" style="margin-top:10px">${info}</p>${werkzeuge}`;
   }
 
   function renderRueckblick(alle, o) {
@@ -2575,6 +2596,16 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     const k = zufallsKandidaten(state.alle, Number(state.einst.zufallMax));
     const b = waehleZufall(k.kandidaten, Math.random, state.zufallGesehen, state.zufallId);
     state.zufallId = b ? b.id : null; renderZufall();
+  });
+  $('zufall').addEventListener('click', e => {
+    const b = e.target.closest('[data-zufall]');
+    if (!b) return;
+    if (b.dataset.zufall === 'liste') state.zufallListeOffen = !state.zufallListeOffen;
+    else if (b.dataset.zufall === 'limit-aus') {
+      state.einst.zufallMax = ''; $('inp-zufall-max').value = '';
+      state.zufallId = null; state.zufallGesehen.clear(); speichereEinstellungen();
+    }
+    renderZufall();
   });
   $('btn-png').addEventListener('click', speicherePNG);
   document.querySelectorAll('#seg-diagramm button').forEach(b => b.addEventListener('click', () => {

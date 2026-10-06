@@ -15,7 +15,7 @@ const ctx = vm.createContext({ Intl });
 vm.runInContext(block('konfig') + '\n' + block('kern') + `
   ;Object.assign(globalThis, { KONFIG, VERGLEICHE, GEBAEUDE, normalisiereEintrag, parseSerie, reihenAuswertung, normalisiereFuerVergleich, findeDubletten, ausreisserListe, datenqualitaet,
     paarSchluessel, leseReihenfolge, meilensteine, durchschnittSeitenProBuch, stapelHoehe, gebaeudeVergleich, zufallsKandidaten,
-    waehleZufall, rueckblick, rueckblickSVG, umbrechen, parseCSV, zeilenZuDatensaetzen, normalisiereBuecher,
+    waehleZufall, leselisteUebersicht, rueckblick, rueckblickSVG, umbrechen, parseCSV, zeilenZuDatensaetzen, normalisiereBuecher,
     normalisiereAlle, filterNachJahr, berechneKennzahlen, jahresAuswertung, formatStunden, formatTageStunden,
     waehleVergleiche, rundeVerhaeltnis, zahl, jahreszielStatus, zeitBisZumLesen, monatsMatrix, wochentage,
     streaksUndPausen, tageZwischen, median, topGruppen, seitenKlassen, erscheinungsStatistik,
@@ -258,6 +258,16 @@ test('Zufall mit Limit 400: nur „Morgenrot über Riga“, 1 ohne Seitenzahl au
 test('Zufall: Nachtragen einer Seitenzahl macht das Buch wählbar', () => {
   const k2 = K.zufallsKandidaten(K.normalisiereAlle(daten, { 'gr:900026': 200 }), 400);
   eq(k2.kandidaten.map(b => b.titel).sort(), ['Ein Jahr in Bergen', 'Morgenrot über Riga']);
+});
+test('Leseliste mit Limit: Status je Buch (Beispiel-CSV: 350 → passt; 520 → zu lang; ohne Seitenzahl → fällt heraus)', () => {
+  const u = K.leselisteUebersicht(alleE, 400);
+  eq(u.map(x => [x.buch.titel, x.buch.seiten, x.status]), [['Morgenrot über Riga', 350, 'passt'], ['Die Inseln hinter dem Nebel', 512, 'zuLang'], ['Ein Jahr in Bergen', null, 'ohneSeiten']]);
+});
+test('Leseliste ohne Limit: alles passt, nach Seiten sortiert, ohne Seitenzahl zuletzt', () => eq(
+  K.leselisteUebersicht(alleE, 0).map(x => [x.buch.seiten, x.status]), [[350, 'passt'], [512, 'passt'], [null, 'passt']]));
+test('Anzahl „passt“ stimmt immer mit den Kandidaten überein (Limits 0 bis 1.000)', () => {
+  for (const lim of [0, 100, 349, 350, 351, 511, 512, 513, 1000]) eq(
+    K.leselisteUebersicht(alleE, lim).filter(x => x.status === 'passt').length, K.zufallsKandidaten(alleE, lim).kandidaten.length);
 });
 test('Ziehung ohne Zurücklegen: in einer Runde kommt jedes Buch genau einmal dran, egal welche Zufallszahlen', () => {
   const ids = [...zk.kandidaten.map(b => b.id)].sort();
