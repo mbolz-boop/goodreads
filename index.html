@@ -632,9 +632,9 @@ footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top
       <section class="card">
         <div class="chart-head">
           <h2>Bücherstapel</h2>
-          <label class="inline">Dicke pro Buch <input type="number" id="inp-cm" min="0.1" max="20" step="0.1"> cm</label>
+          <label class="inline">Dicke eines durchschnittlichen Buchs <input type="number" id="inp-cm" min="0.1" max="20" step="0.1"> cm</label>
         </div>
-        <p class="erklaerung">Alle gelesenen Bücher des gewählten Zeitraums aufeinandergestapelt. Die Dicke ist ein Richtwert für Taschenbücher, Gebundene sind oft dicker.</p>
+        <p class="erklaerung">Alle gelesenen Seiten des gewählten Zeitraums aufeinandergestapelt. Aus der Dicke eines durchschnittlichen Buchs (Richtwert für Taschenbücher) und der Ø Seitenzahl deiner gelesenen Bücher ergibt sich die Dicke einer Seite; die Höhe ist Seitenzahl × Dicke pro Seite.</p>
         <div class="stapel-layout">
           <div class="viz stapel-grafik" id="stapel"></div>
           <div class="stapel-text">
@@ -1324,20 +1324,33 @@ function meilensteine(buecher, opt) {
   };
 }
 
-/** Höhe des Bücherstapels in Metern */
-function stapelHoehe(anzahl, cmProBuch) { return anzahl * cmProBuch / 100; }
+/** Durchschnittliche Dicke einer Buchseite: Dicke eines durchschnittlichen Buchs ÷ Ø Seiten pro Buch.
+    Grundlage sind alle gelesenen Bücher mit Seitenzahl (nicht der Zeitraum-Filter), damit die Dicke pro Seite
+    für jeden Zeitraum gleich bleibt. Liefert null, wenn keine Seitenzahlen vorliegen. */
+function seitenDicke(buecher, cmProBuch) {
+  const mit = buecher.filter(b => b.seiten != null);
+  if (!mit.length) return null;
+  const durchschnittSeiten = mit.reduce((a, b) => a + b.seiten, 0) / mit.length;
+  return { durchschnittSeiten, mmProSeite: cmProBuch * 10 / durchschnittSeiten, buecher: mit.length };
+}
 
-/** Vergleicht eine Höhe (m) mit der Gebäudeliste, aufsteigend nach Höhe */
-function gebaeudeVergleich(hoeheM, cmProBuch, liste = GEBAEUDE) {
+/** Höhe des Bücherstapels in Metern: gelesene Seiten × Dicke pro Seite */
+function stapelHoehe(seiten, mmProSeite) { return seiten * mmProSeite / 1000; }
+
+/** Vergleicht eine Höhe (m) mit der Gebäudeliste, aufsteigend nach Höhe.
+    fehlendSeiten/fehlendBuecher: so viel müsste noch dazukommen (Bücher mit der Ø Seitenzahl). */
+function gebaeudeVergleich(hoeheM, mmProSeite, durchschnittSeiten, liste = GEBAEUDE) {
   return liste.filter(g => g.einheit === 'm' && g.wert > 0)
     .slice().sort((a, b) => a.wert - b.wert)
     .map(g => {
       const erreicht = hoeheM >= g.wert;
+      const fehlendSeiten = erreicht ? 0 : Math.ceil((g.wert - hoeheM) * 1000 / mmProSeite);
       return {
         ...g, erreicht,
         prozent: Math.min(100, hoeheM / g.wert * 100),
         faktor: hoeheM / g.wert,
-        fehlendBuecher: erreicht ? 0 : Math.ceil((g.wert - hoeheM) / (cmProBuch / 100)),
+        fehlendSeiten,
+        fehlendBuecher: Math.ceil(fehlendSeiten / durchschnittSeiten),
       };
     });
 }
@@ -2103,7 +2116,7 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
 
   function renderSpiel(alle, gefiltert, o) {
     renderMeilensteine(alle, o);
-    renderStapel(gefiltert, o);
+    renderStapel(alle, gefiltert, o);
     renderZufall();
     renderRueckblick(alle, o);
   }
@@ -2118,31 +2131,50 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     $('badges-seiten').innerHTML = m.seiten.map(b => badge(b, 'Seiten')).join('');
   }
 
-  function stapelSVG(el, n) {
+  function stapelSVG(el, seitenListe, durchschnitt) {
+    const n = seitenListe.length;
     if (!n) { el.innerHTML = '<p class="muted">Noch keine Bücher.</p>'; return; }
-    const zeichnen = Math.min(n, 40), zh = 10, w = 200, H = zeichnen * zh + 24;
+    // Jeder Buchrücken ist so hoch wie das Buch dick ist (Seitenzahl im Verhältnis zum Schnitt); ab 40 Büchern gleichmäßig ausgewählt
+    const zeichnen = Math.min(n, 40);
+    const buecher = Array.from({ length: zeichnen }, (_, i) => seitenListe[Math.floor(i * n / zeichnen)]);
+    const hoehe = sp => Math.max(4, Math.min(36, (sp ?? durchschnitt) / durchschnitt * 10));
+    const w = 200, summe = buecher.reduce((a, sp) => a + hoehe(sp), 0), H = summe + 24;
     const farben = ['--hm3', '--bar', '--hm4', '--hm2', '--bar-dim'];
-    let s = `<svg viewBox="0 0 ${w} ${H}" width="${w}" height="${H}" role="img" aria-label="Bücherstapel aus ${zahl(n)} Büchern">`;
-    for (let i = 0; i < zeichnen; i++) {
-      const bw = 130 + (i * 37) % 55, x = (w - bw) / 2 + ((i * 53) % 13) - 6;
-      s += `<rect class="spine" x="${x}" y="${H - 24 - (i + 1) * zh}" width="${bw}" height="${zh}" rx="2" style="fill:var(${farben[(i * 3) % farben.length]})"/>`;
-    }
+    let s = `<svg viewBox="0 0 ${w} ${H}" width="${w}" height="${H}" role="img" aria-label="Bücherstapel aus ${zahl(n)} Büchern, jeder Buchrücken so hoch wie die Seitenzahl des Buchs im Verhältnis zum Durchschnitt">`;
+    let y = H - 24;
+    buecher.forEach((sp, i) => {
+      const h = hoehe(sp), bw = 130 + (i * 37) % 55, x = (w - bw) / 2 + ((i * 53) % 13) - 6;
+      y -= h;
+      s += `<rect class="spine" x="${x}" y="${y}" width="${bw}" height="${h}" rx="2" style="fill:var(${farben[(i * 3) % farben.length]})"/>`;
+    });
     s += `<line class="grid" x1="10" x2="${w - 10}" y1="${H - 23}" y2="${H - 23}"/>`;
-    if (n > zeichnen) s += `<text class="stapel-text-svg" x="${w / 2}" y="${H - 6}" text-anchor="middle">Darstellung auf ${zeichnen} Bücher gekürzt</text>`;
+    if (n > zeichnen) s += `<text class="stapel-text-svg" x="${w / 2}" y="${H - 6}" text-anchor="middle">Auswahl von ${zeichnen} Büchern</text>`;
     el.innerHTML = s + '</svg>';
   }
 
-  function renderStapel(g, o) {
-    const n = berechneKennzahlen(g, o).anzahl;
+  const NF3 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 3 });
+
+  function renderStapel(alle, g, o) {
+    const k = berechneKennzahlen(g, o);
     const cm = state.einst.stapelCm;
-    const h = stapelHoehe(n, cm);
-    stapelSVG($('stapel'), n);
-    $('stapel-kpis').innerHTML = kpi('Höhe deines Stapels', n ? fmtHoehe(h) : '–', n ? `${zahl(n)} ${buecherWort(n)} × ${zahl1(cm)} cm · ${esc(zeitraumText(state.einst.jahr))}` : 'keine Bücher im gewählten Zeitraum', 'hero');
-    if (!n) { $('stapel-ziel').textContent = ''; $('gebaeude').innerHTML = ''; return; }
-    const liste = gebaeudeVergleich(h, cm);
+    const dicke = seitenDicke(alle, cm);
+    const zeitraum = esc(zeitraumText(state.einst.jahr));
+    if (!dicke || !k.seiten) {
+      stapelSVG($('stapel'), [], 1);
+      $('stapel-kpis').innerHTML = kpi('Höhe deines Stapels', '–', !dicke ? 'keine Seitenzahlen vorhanden' : `keine gelesenen Seiten im gewählten Zeitraum`, 'hero');
+      $('stapel-ziel').textContent = ''; $('gebaeude').innerHTML = '';
+      return;
+    }
+    const h = stapelHoehe(k.seiten, dicke.mmProSeite);
+    stapelSVG($('stapel'), g.map(b => b.seiten), dicke.durchschnittSeiten);
+    $('stapel-kpis').innerHTML = [
+      kpi('Höhe deines Stapels', fmtHoehe(h), `${zahl(k.seiten)} Seiten × ${NF3.format(dicke.mmProSeite)} mm pro Seite · ${zeitraum}${k.ohneSeiten ? ` · ${zahl(k.ohneSeiten)} ${buecherWort(k.ohneSeiten)} ohne Seitenzahl nicht enthalten` : ''}`, 'hero'),
+      kpi('Dicke einer Seite', `${NF3.format(dicke.mmProSeite)} mm`, `${zahl1(cm)} cm ÷ ${zahl(Math.round(dicke.durchschnittSeiten))} Seiten (Ø deiner ${zahl(dicke.buecher)} Bücher mit Seitenzahl)`),
+    ].join('');
+    const liste = gebaeudeVergleich(h, dicke.mmProSeite, dicke.durchschnittSeiten);
     const naechstes = liste.find(x => !x.erreicht);
     $('stapel-ziel').textContent = naechstes
-      ? `Bis zur Höhe von „${naechstes.name}“ (ca. ${fmtHoehe(naechstes.wert)}) fehlen noch ca. ${rundeAnzahl(naechstes.fehlendBuecher)} ${buecherWort(naechstes.fehlendBuecher)}.`
+      ? `Bis zur Höhe von „${naechstes.name}“ (ca. ${fmtHoehe(naechstes.wert)}) fehlen noch ca. ${rundeAnzahl(naechstes.fehlendSeiten)} Seiten, das sind etwa ${rundeAnzahl(naechstes.fehlendBuecher)} ${buecherWort(naechstes.fehlendBuecher)} mit deinem Seitenschnitt.`
       : 'Dein Stapel überragt alle Gebäude der Liste.';
     hBalkenSVG($('gebaeude'), liste.map(x => ({
       label: `${x.name} (ca. ${fmtHoehe(x.wert)})`,

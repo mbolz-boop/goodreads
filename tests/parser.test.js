@@ -14,7 +14,7 @@ const block = id => {
 const ctx = vm.createContext({ Intl });
 vm.runInContext(block('konfig') + '\n' + block('kern') + `
   ;Object.assign(globalThis, { KONFIG, VERGLEICHE, GEBAEUDE, normalisiereEintrag, parseSerie, reihenAuswertung, normalisiereFuerVergleich, findeDubletten, ausreisserListe, datenqualitaet,
-    paarSchluessel, leseReihenfolge, meilensteine, stapelHoehe, gebaeudeVergleich, zufallsKandidaten,
+    paarSchluessel, leseReihenfolge, meilensteine, seitenDicke, stapelHoehe, gebaeudeVergleich, zufallsKandidaten,
     waehleZufall, rueckblick, rueckblickSVG, umbrechen, parseCSV, zeilenZuDatensaetzen, normalisiereBuecher,
     normalisiereAlle, filterNachJahr, berechneKennzahlen, jahresAuswertung, formatStunden, formatTageStunden,
     waehleVergleiche, rundeVerhaeltnis, zahl, jahreszielStatus, zeitBisZumLesen, monatsMatrix, wochentage,
@@ -217,14 +217,31 @@ test('Meilenstein erreicht nur durch Buch ohne Lesedatum → Datum unbekannt', (
   const m = K.meilensteine(b, opt); eq([m.buecher[0].erreicht, m.buecher[0].datum], [true, null]);
 });
 
-test('Stapelhöhe: 22 Bücher × 2,5 cm = 0,55 m', () => assert.strictEqual(K.stapelHoehe(22, 2.5).toFixed(2), '0.55'));
-const gv = K.gebaeudeVergleich(0.55, 2.5);
-test('Gebäudevergleich: aufsteigend, Tisch 76 %, Brandenburger Tor 2 %', () => eq(
-  [gv[0].name, Math.round(gv[0].prozent), gv[0].erreicht, Math.round(gv.find(x => x.name === 'Brandenburger Tor').prozent)], ['Tisch (Standardhöhe)', 76, false, 2]));
-test('Bücher bis zum Brandenburger Tor: (26 − 0,55) / 0,025 = 1.018', () => assert.strictEqual(gv.find(x => x.name === 'Brandenburger Tor').fehlendBuecher, 1018));
-test('Stapel überragt Gebäude → Faktor', () => {
-  const hoch = K.gebaeudeVergleich(60, 2.5).filter(x => x.erreicht).map(x => x.name);
-  eq(hoch, ['Tisch (Standardhöhe)', 'Erwachsener Mensch', 'Doppeldeckerbus', 'Brandenburger Tor']);
+const dicke = K.seitenDicke(buecher, 2.5);
+test('Dicke einer Seite: 2,5 cm ÷ Ø 426,55 Seiten (20 Bücher mit Seitenzahl) = 0,0586 mm', () => eq(
+  [dicke.buecher, dicke.durchschnittSeiten, dicke.mmProSeite.toFixed(4)], [20, 426.55, '0.0586']));
+test('Stapelhöhe nach Seiten: 8.531 Seiten × 0,0586 mm = 0,50 m (entspricht 20 Büchern × 2,5 cm)', () => assert.strictEqual(K.stapelHoehe(8531, dicke.mmProSeite).toFixed(3), '0.500'));
+test('Stapelhöhe für 2024: 2.225 Seiten → 13,0 cm (nicht 5 × 2,5 = 12,5 cm), Dicke pro Seite bleibt gleich', () => {
+  const g = K.filterNachJahr(buecher, 2024), k = K.berechneKennzahlen(g, opt);
+  eq([k.seiten, K.stapelHoehe(k.seiten, dicke.mmProSeite).toFixed(3)], [2225, '0.130']);
+});
+test('Dicke pro Seite hängt von der Buchdicke ab (4 cm → 0,0938 mm) und ist ohne Seitenzahlen null', () => eq(
+  [K.seitenDicke(buecher, 4).mmProSeite.toFixed(4), K.seitenDicke([{ seiten: null }], 2.5)], ['0.0938', null]));
+test('Mehrfach-Schalter erhöht die Seiten und damit die Höhe', () => assert.ok(
+  K.stapelHoehe(K.berechneKennzahlen(buecher, { ...opt, mehrfach: true }).seiten, dicke.mmProSeite) > K.stapelHoehe(K.berechneKennzahlen(buecher, opt).seiten, dicke.mmProSeite)));
+const hoeheAlle = K.stapelHoehe(8531, dicke.mmProSeite);
+const gv = K.gebaeudeVergleich(hoeheAlle, dicke.mmProSeite, dicke.durchschnittSeiten);
+test('Gebäudevergleich: aufsteigend, Tisch 69 %, Brandenburger Tor 2 %', () => eq(
+  [gv[0].name, Math.round(gv[0].prozent), gv[0].erreicht, Math.round(gv.find(x => x.name === 'Brandenburger Tor').prozent)], ['Tisch (Standardhöhe)', 69, false, 2]));
+test('bis zum Brandenburger Tor fehlen 435.081 Seiten, etwa 1.020 Bücher mit dem Seitenschnitt', () => {
+  const bt = gv.find(x => x.name === 'Brandenburger Tor');
+  eq([bt.fehlendSeiten, bt.fehlendBuecher], [Math.ceil((26 - hoeheAlle) * 1000 / dicke.mmProSeite), Math.ceil(bt.fehlendSeiten / dicke.durchschnittSeiten)]);
+  eq([bt.fehlendSeiten, bt.fehlendBuecher], [435081, 1020]);
+});
+test('Stapel überragt Gebäude → Faktor, nichts fehlt mehr', () => {
+  const l = K.gebaeudeVergleich(60, dicke.mmProSeite, dicke.durchschnittSeiten);
+  eq([l.filter(x => x.erreicht).map(x => x.name), l.filter(x => x.erreicht).every(x => x.fehlendSeiten === 0 && x.fehlendBuecher === 0)],
+    [['Tisch (Standardhöhe)', 'Erwachsener Mensch', 'Doppeldeckerbus', 'Brandenburger Tor'], true]);
 });
 test('Gebäudeliste: alle Einträge mit Name, Wert, Einheit m, Quelle', () => assert.ok(K.GEBAEUDE.every(g => g.name && g.wert > 0 && g.einheit === 'm' && g.quelle)));
 test('Gebäudeliste enthält die geforderten Werte', () => eq(
