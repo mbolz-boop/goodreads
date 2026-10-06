@@ -18,8 +18,10 @@ const KONFIG = {
   minutenProSeite: 2,
   // Jahresziel: Bücher pro Jahr (Startwert, im Browser änderbar)
   jahresziel: 25,
-  // Bücherstapel: Dicke eines Buchs in cm (Richtwert für Taschenbücher, im Browser änderbar)
-  buchDickeCm: 2.5,
+  // Bücherstapel: Dicke einer Buchseite in mm (im Browser änderbar).
+  // Recherche: Papier mit 80 g/m² ist etwa 0,10 mm je Blatt dick, Buchpapier meist 0,08 bis 0,12 mm.
+  // Eine Seite ist ein halbes Blatt, also etwa 0,05 mm. Der Umschlag ist nicht eingerechnet.
+  seitenDickeMm: 0.05,
   // Ausreißer-Warnung: Seitenzahlen unter/über diesen Werten gelten als Verdachtsfall (im Browser änderbar)
   ausreisserMin: 30,
   ausreisserMax: 1500,
@@ -632,9 +634,9 @@ footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top
       <section class="card">
         <div class="chart-head">
           <h2>Bücherstapel</h2>
-          <label class="inline">Dicke eines durchschnittlichen Buchs <input type="number" id="inp-cm" min="0.1" max="20" step="0.1"> cm</label>
+          <label class="inline">Dicke einer Buchseite <input type="number" id="inp-seitendicke" min="0.005" max="1" step="0.005"> mm</label>
         </div>
-        <p class="erklaerung">Alle gelesenen Seiten des gewählten Zeitraums aufeinandergestapelt. Aus der Dicke eines durchschnittlichen Buchs (Richtwert für Taschenbücher) und der Ø Seitenzahl deiner gelesenen Bücher ergibt sich die Dicke einer Seite; die Höhe ist Seitenzahl × Dicke pro Seite.</p>
+        <p class="erklaerung">Alle gelesenen Seiten des gewählten Zeitraums aufeinandergestapelt: Höhe = Seitenzahl × Dicke einer Seite. Richtwert: Papier mit 80 g/m² ist etwa 0,10 mm je Blatt dick, Buchpapier meist 0,08 bis 0,12 mm. Eine Seite ist ein halbes Blatt, also etwa 0,05 mm; der Umschlag ist nicht eingerechnet.</p>
         <div class="stapel-layout">
           <div class="viz stapel-grafik" id="stapel"></div>
           <div class="stapel-text">
@@ -1324,14 +1326,12 @@ function meilensteine(buecher, opt) {
   };
 }
 
-/** Durchschnittliche Dicke einer Buchseite: Dicke eines durchschnittlichen Buchs ÷ Ø Seiten pro Buch.
-    Grundlage sind alle gelesenen Bücher mit Seitenzahl (nicht der Zeitraum-Filter), damit die Dicke pro Seite
-    für jeden Zeitraum gleich bleibt. Liefert null, wenn keine Seitenzahlen vorliegen. */
-function seitenDicke(buecher, cmProBuch) {
+/** Ø Seiten pro Buch über alle gelesenen Bücher mit Seitenzahl (null, wenn keine vorliegen).
+    Dient nur der Umrechnung „fehlende Seiten → Bücher“ und der Grafik, nicht der Höhe. */
+function durchschnittSeitenProBuch(buecher) {
   const mit = buecher.filter(b => b.seiten != null);
   if (!mit.length) return null;
-  const durchschnittSeiten = mit.reduce((a, b) => a + b.seiten, 0) / mit.length;
-  return { durchschnittSeiten, mmProSeite: cmProBuch * 10 / durchschnittSeiten, buecher: mit.length };
+  return { wert: mit.reduce((a, b) => a + b.seiten, 0) / mit.length, buecher: mit.length };
 }
 
 /** Höhe des Bücherstapels in Metern: gelesene Seiten × Dicke pro Seite */
@@ -1570,13 +1570,14 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     dq: Object.assign({ keine: [], ausgeschlossen: [] }, ladeJSON(SPEICHER.dq, {})),
     lese: [],      // alle gelesenen Bücher inkl. ausgeschlossener Dubletten
     einst: Object.assign(
-      { jahr: 'alle', mehrfach: false, minutenProSeite: KONFIG.minutenProSeite, diagramm: 'buecher', autorenModus: 'buecher', tab: 'uebersicht', jahresziel: KONFIG.jahresziel, stapelCm: KONFIG.buchDickeCm, zufallMax: '', ausreisserMin: KONFIG.ausreisserMin, ausreisserMax: KONFIG.ausreisserMax },
+      { jahr: 'alle', mehrfach: false, minutenProSeite: KONFIG.minutenProSeite, diagramm: 'buecher', autorenModus: 'buecher', tab: 'uebersicht', jahresziel: KONFIG.jahresziel, seitenDickeMm: KONFIG.seitenDickeMm, zufallMax: '', ausreisserMin: KONFIG.ausreisserMin, ausreisserMax: KONFIG.ausreisserMax },
       ladeJSON(SPEICHER.einstellungen, {})
     ),
   };
   if (!(state.einst.minutenProSeite > 0)) state.einst.minutenProSeite = KONFIG.minutenProSeite;
   if (!(state.einst.jahresziel >= 1)) state.einst.jahresziel = KONFIG.jahresziel;
-  if (!(state.einst.stapelCm > 0)) state.einst.stapelCm = KONFIG.buchDickeCm;
+  if (!(state.einst.seitenDickeMm > 0)) state.einst.seitenDickeMm = KONFIG.seitenDickeMm;
+  delete state.einst.stapelCm; // frühere Einstellung (Buchdicke in cm) gibt es nicht mehr
   state.zufallId = null;
   if (!Array.isArray(state.dq.keine)) state.dq.keine = [];
   if (!Array.isArray(state.dq.ausgeschlossen)) state.dq.ausgeschlossen = [];
@@ -1683,14 +1684,14 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     $('chk-mehrfach').checked = state.einst.mehrfach;
     if (document.activeElement !== $('inp-minuten')) $('inp-minuten').value = String(state.einst.minutenProSeite);
     if (document.activeElement !== $('inp-ziel')) $('inp-ziel').value = String(state.einst.jahresziel);
-    if (document.activeElement !== $('inp-cm')) $('inp-cm').value = String(state.einst.stapelCm);
+    if (document.activeElement !== $('inp-seitendicke')) $('inp-seitendicke').value = String(state.einst.seitenDickeMm);
     if (document.activeElement !== $('inp-aus-min')) $('inp-aus-min').value = String(state.einst.ausreisserMin);
     if (document.activeElement !== $('inp-aus-max')) $('inp-aus-max').value = String(state.einst.ausreisserMax);
     if (document.activeElement !== $('inp-zufall-max')) $('inp-zufall-max').value = state.einst.zufallMax === '' ? '' : String(state.einst.zufallMax);
     $('dateiinfo').textContent = state.dateiname ? 'Datei: ' + state.dateiname : '';
-    $('inp-cm').addEventListener('input', e => {
+    $('inp-seitendicke').addEventListener('input', e => {
     const v = parseFloat(String(e.target.value).replace(',', '.'));
-    if (v > 0 && v <= 20) { state.einst.stapelCm = v; speichereEinstellungen(); render(); }
+    if (v > 0 && v <= 1) { state.einst.seitenDickeMm = v; speichereEinstellungen(); render(); }
   });
   $('inp-zufall-max').addEventListener('input', e => {
     const v = parseInt(e.target.value, 10);
@@ -2156,22 +2157,22 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
 
   function renderStapel(alle, g, o) {
     const k = berechneKennzahlen(g, o);
-    const cm = state.einst.stapelCm;
-    const dicke = seitenDicke(alle, cm);
+    const mm = state.einst.seitenDickeMm;
+    const schnitt = durchschnittSeitenProBuch(alle);
     const zeitraum = esc(zeitraumText(state.einst.jahr));
-    if (!dicke || !k.seiten) {
+    if (!schnitt || !k.seiten) {
       stapelSVG($('stapel'), [], 1);
-      $('stapel-kpis').innerHTML = kpi('Höhe deines Stapels', '–', !dicke ? 'keine Seitenzahlen vorhanden' : `keine gelesenen Seiten im gewählten Zeitraum`, 'hero');
+      $('stapel-kpis').innerHTML = kpi('Höhe deines Stapels', '–', !schnitt ? 'keine Seitenzahlen vorhanden' : `keine gelesenen Seiten im gewählten Zeitraum`, 'hero');
       $('stapel-ziel').textContent = ''; $('gebaeude').innerHTML = '';
       return;
     }
-    const h = stapelHoehe(k.seiten, dicke.mmProSeite);
-    stapelSVG($('stapel'), g.map(b => b.seiten), dicke.durchschnittSeiten);
+    const h = stapelHoehe(k.seiten, mm);
+    stapelSVG($('stapel'), g.map(b => b.seiten), schnitt.wert);
     $('stapel-kpis').innerHTML = [
-      kpi('Höhe deines Stapels', fmtHoehe(h), `${zahl(k.seiten)} Seiten × ${NF3.format(dicke.mmProSeite)} mm pro Seite · ${zeitraum}${k.ohneSeiten ? ` · ${zahl(k.ohneSeiten)} ${buecherWort(k.ohneSeiten)} ohne Seitenzahl nicht enthalten` : ''}`, 'hero'),
-      kpi('Dicke einer Seite', `${NF3.format(dicke.mmProSeite)} mm`, `${zahl1(cm)} cm ÷ ${zahl(Math.round(dicke.durchschnittSeiten))} Seiten (Ø deiner ${zahl(dicke.buecher)} Bücher mit Seitenzahl)`),
+      kpi('Höhe deines Stapels', fmtHoehe(h), `${zahl(k.seiten)} Seiten × ${NF3.format(mm)} mm pro Seite · ${zeitraum}${k.ohneSeiten ? ` · ${zahl(k.ohneSeiten)} ${buecherWort(k.ohneSeiten)} ohne Seitenzahl nicht enthalten` : ''}`, 'hero'),
+      kpi('Dicke einer Seite', `${NF3.format(mm)} mm`, `Richtwert, Papier ohne Umschlag. Ein Buch mit ${zahl(Math.round(schnitt.wert))} Seiten (dein Schnitt) wäre ca. ${zahl1(Math.round(schnitt.wert * mm / 10 * 10) / 10)} cm dick.`),
     ].join('');
-    const liste = gebaeudeVergleich(h, dicke.mmProSeite, dicke.durchschnittSeiten);
+    const liste = gebaeudeVergleich(h, mm, schnitt.wert);
     const naechstes = liste.find(x => !x.erreicht);
     $('stapel-ziel').textContent = naechstes
       ? `Bis zur Höhe von „${naechstes.name}“ (ca. ${fmtHoehe(naechstes.wert)}) fehlen noch ca. ${rundeAnzahl(naechstes.fehlendSeiten)} Seiten, das sind etwa ${rundeAnzahl(naechstes.fehlendBuecher)} ${buecherWort(naechstes.fehlendBuecher)} mit deinem Seitenschnitt.`
