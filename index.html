@@ -268,7 +268,7 @@ input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
 .viz .yr-text.sel { fill: var(--text); font-weight: 700; }
 .tooltip {
   position: absolute; pointer-events: none; background: var(--text); color: var(--bg);
-  padding: 6px 10px; border-radius: 6px; font-size: .82rem; white-space: nowrap;
+  padding: 6px 10px; border-radius: 6px; font-size: .82rem; width: max-content; max-width: calc(100% - 8px); text-align: center;
   transform: translate(-50%, calc(-100% - 8px)); z-index: 2;
 }
 .chart-hinweis { font-size: .8rem; color: var(--text-3); margin: 6px 0 0; }
@@ -360,6 +360,16 @@ td.wenig { color: var(--warn-text); font-size: .82rem; white-space: normal; }
 .zufall-karte .dauer { margin-top: 8px; font-size: .92rem; color: var(--text-2); }
 .wrapped { max-width: 420px; margin: 0 auto; border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); }
 .wrapped svg { display: block; width: 100%; height: auto; }
+/* Reihen */
+.reihe { background: var(--surface-2); border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+.reihe-kopf { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; align-items: baseline; }
+.reihe-kopf .name { font-weight: 650; overflow-wrap: anywhere; min-width: 0; }
+.reihe-kopf .meta { font-size: .82rem; color: var(--text-2); }
+.reihe-notiz { margin: 4px 0 0; font-size: .82rem; color: var(--text-2); }
+.viz .ghost { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.viz .luecke-box { fill: none; stroke: var(--text-3); stroke-width: 1.5; stroke-dasharray: 1.5 3; }
+.viz .unbew { fill: none; stroke: var(--text-3); stroke-width: 1.5; }
+.viz .reihe-text { fill: var(--text-2); font-size: 11px; }
 /* Listen */
 .zwei-spalten { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 16px; }
 .zwei-spalten h3 { font-size: .95rem; margin: 0 0 8px; color: var(--text-2); }
@@ -545,6 +555,14 @@ footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top
         <p class="erklaerung">Bei mehreren Autoren zählt der Hauptautor aus der Spalte <em>Author</em>.</p>
         <div class="viz" id="autoren"></div>
         <p class="chart-hinweis" id="autoren-hinweis"></p>
+      </section>
+
+      <section class="card">
+        <h2>Reihen</h2>
+        <p class="erklaerung">Erkannt an Titeln wie „Titel (Reihenname, #3)“. Gilt für alle Jahre, unabhängig vom Zeitraum-Filter. Gestrichelt: steht auf <em>to-read</em> oder <em>currently-reading</em>. Leer gepunktet: Band dazwischen, den du nicht gelesen hast.</p>
+        <div class="kpis" id="reihen-kpis"></div>
+        <div class="viz" id="reihen" style="margin-top:16px"></div>
+        <p class="chart-hinweis" id="reihen-hinweis"></p>
       </section>
 
       <section class="card">
@@ -785,9 +803,27 @@ function parseJahr(s) {
 
 const STANDARDREGALE = ['read', 'to-read', 'currently-reading'];
 
+/** Reihe aus dem Titel: „Titel (Reihenname, #3)“, „… (Reihenname #3)“, auch Sammelbände „#1-3“ und „#0.5“.
+    Liefert {name, schluessel, von, bis, text, basisTitel} oder null. */
+function parseSerie(titel) {
+  const t = String(titel ?? '');
+  const m = /\s*\(([^()]+?)[,\s]+#\s*(\d+(?:[.,]\d+)?)(?:\s*[-–]\s*(\d+(?:[.,]\d+)?))?\)\s*$/.exec(t);
+  if (!m) return null;
+  const name = m[1].trim().replace(/[,\s]+$/, '');
+  if (!name || /^\d+$/.test(name)) return null;
+  const von = parseFloat(m[2].replace(',', '.'));
+  const bis = m[3] ? Math.max(von, parseFloat(m[3].replace(',', '.'))) : von;
+  return {
+    name, schluessel: normalisiereFuerVergleich(name), von, bis,
+    text: m[3] ? `${m[2]}–${m[3]}` : m[2],
+    basisTitel: t.slice(0, m.index).trim(),
+  };
+}
+
 /** Ein Datensatz → normalisiertes Buch. overrides: {buchId: seiten} (manuell nachgetragen/korrigiert) */
 function normalisiereEintrag(d, overrides = {}) {
   const id = buchId(d);
+  const serie = parseSerie(d['Title']);
   const seitenCSV = parseSeiten(d['Number of Pages']);
   const manuell = parseSeiten(overrides[id]);
   const dat = parseDatum(d['Date Read']);
@@ -800,6 +836,8 @@ function normalisiereEintrag(d, overrides = {}) {
     id,
     regal: (d['Exclusive Shelf'] || '').trim().toLowerCase(),
     titel: d['Title'] || '(ohne Titel)',
+    serie,                                   // {name, von, bis, text, …} oder null
+    basisTitel: serie ? serie.basisTitel : (d['Title'] || '(ohne Titel)'),
     autor: d['Author'] || '',
     weitereAutoren: (d['Additional Authors'] || '').split(',').map(a => a.trim()).filter(Boolean),
     isbn: bereinigeISBN(d['ISBN']),
@@ -1099,6 +1137,61 @@ function erscheinungsStatistik(buecher, opt, heuteJahr) {
     neuestes: sortiert[sortiert.length - 1] || null,
     fehlend: fehlend.reduce((a, b) => a + gewicht(b, opt), 0),
     fehlendMitAusgabejahr: fehlend.filter(b => b.erscheinungsjahrQuelle === 'ausgabe').reduce((a, b) => a + gewicht(b, opt), 0),
+  };
+}
+
+/** Reihen: gelesen = Bücher der Statistik, offen = Einträge auf to-read / currently-reading.
+    Nur Reihen, aus denen mindestens ein Band gelesen wurde. Zählt Titel, nicht Lesungen. */
+function reihenAuswertung(gelesen, offen = []) {
+  const mittel = l => l.length ? l.reduce((a, b) => a + b.bewertung, 0) / l.length : null;
+  const map = new Map();
+  const eintragen = (b, status) => {
+    if (!b.serie || !b.serie.schluessel) return;
+    if (!map.has(b.serie.schluessel)) map.set(b.serie.schluessel, { name: b.serie.name, baende: [] });
+    map.get(b.serie.schluessel).baende.push({
+      id: b.id, titel: b.titel, basisTitel: b.basisTitel, von: b.serie.von, bis: b.serie.bis, text: b.serie.text,
+      status, bewertung: b.bewertung, seiten: b.seiten, datum: b.datum,
+    });
+  };
+  gelesen.forEach(b => eintragen(b, 'gelesen'));
+  offen.forEach(b => eintragen(b, b.regal === 'currently-reading' ? 'aktuell' : 'wunsch'));
+  const reihen = [], nurOffen = [];
+  for (const r of map.values()) {
+    const g = r.baende.filter(x => x.status === 'gelesen');
+    if (!g.length) { r.baende.sort((a, b) => a.von - b.von); nurOffen.push(r); continue; }
+    r.baende.sort((a, b) => a.von - b.von || a.titel.localeCompare(b.titel, 'de'));
+    const bewertet = g.filter(x => x.bewertung > 0).sort((a, b) => a.von - b.von);
+    r.gelesen = g.length;
+    r.offen = r.baende.length - g.length;
+    r.bewertet = bewertet.length;
+    r.durchschnitt = mittel(bewertet);
+    r.erster = bewertet[0] || null;
+    r.letzter = bewertet[bewertet.length - 1] || null;
+    // Entwicklung der Bewertung: erster gegen letzten bewerteten Band, ab 1 Stern Unterschied
+    r.trend = bewertet.length >= 2
+      ? (r.letzter.bewertung - r.erster.bewertung <= -1 ? 'sinkt' : r.letzter.bewertung - r.erster.bewertung >= 1 ? 'steigt' : 'gleich')
+      : null;
+    // Lücken: ganze Nummern zwischen kleinstem und größtem gelesenen Band, die nicht gelesen sind
+    const gelesenNr = new Set(), offenNr = new Set();
+    for (const x of r.baende) for (let n = Math.ceil(x.von); n <= Math.floor(x.bis); n++) (x.status === 'gelesen' ? gelesenNr : offenNr).add(n);
+    r.luecken = [];
+    if (gelesenNr.size) {
+      const lo = Math.min(...gelesenNr), hi = Math.max(...gelesenNr);
+      for (let n = lo; n <= hi && n - lo < 500; n++) if (!gelesenNr.has(n)) r.luecken.push({ nummer: n, status: offenNr.has(n) ? 'offen' : 'fehlt' });
+    }
+    r.naechste = r.baende.filter(x => x.status !== 'gelesen');
+    reihen.push(r);
+  }
+  reihen.sort((a, b) => b.gelesen - a.gelesen || a.name.localeCompare(b.name, 'de'));
+  nurOffen.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  const inReihen = gelesen.filter(b => b.serie).length;
+  const reihenBuecher = gelesen.filter(b => b.serie && b.bewertung > 0);
+  const einzelBuecher = gelesen.filter(b => !b.serie && b.bewertung > 0);
+  return {
+    gesamt: gelesen.length, inReihen, einzel: gelesen.length - inReihen,
+    reihen, nurOffen, mehrteilig: reihen.filter(r => r.gelesen >= 2).length,
+    durchschnittReihen: mittel(reihenBuecher), bewertetReihen: reihenBuecher.length,
+    durchschnittEinzel: mittel(einzelBuecher), bewertetEinzel: einzelBuecher.length,
   };
 }
 
@@ -1552,7 +1645,7 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     switch (state.einst.tab) {
       case 'uebersicht': renderKennzahlen(k, jahr); renderVergleiche(k); renderJahresziel(alle, o); break;
       case 'jahre': renderJahre(alle, o); renderLeseverhalten(alle, gefiltert, o); break;
-      case 'autoren': renderBuecherAutoren(gefiltert, o); break;
+      case 'autoren': renderBuecherAutoren(gefiltert, o); renderReihen(alle); break;
       case 'bewertungen': renderBewertungen(gefiltert, o); break;
       case 'spiel': renderSpiel(alle, gefiltert, o); break;
       case 'qualitaet': renderDatenqualitaet(alle, o); renderOhneSeiten(alle); break;
@@ -1881,6 +1974,87 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
       r.gesamt > r.liste.length ? `Top ${r.liste.length} von ${zahl(r.gesamt)} Regalen. Ein Buch kann in mehreren Regalen stehen.` : (r.liste.length ? 'Ein Buch kann in mehreren Regalen stehen.' : ''),
       ohneText(r.ohne, 'in keinem eigenen Regal'),
     ].filter(Boolean).join(' ');
+  }
+
+  /* ---------- Reihen ---------- */
+  function reiheSVG(r, breite) {
+    // Plätze: alle bekannten Bände plus leere Plätze für nicht gelesene Nummern dazwischen
+    const plaetze = r.baende.map(b => ({ von: b.von, text: b.text, status: b.status, bewertung: b.bewertung, b }));
+    for (const l of r.luecken) {
+      if (!r.baende.some(b => b.status !== 'gelesen' && Math.ceil(b.von) <= l.nummer && l.nummer <= Math.floor(b.bis))) {
+        plaetze.push({ von: l.nummer, text: String(l.nummer), status: 'luecke', bewertung: 0, b: null });
+      }
+    }
+    plaetze.sort((a, b) => a.von - b.von);
+    const W = Math.max(240, breite), H = 92, top = 14, ih = 56, unten = top + ih;
+    const band = W / plaetze.length, bw = Math.min(30, band * 0.6);
+    const y = v => unten - v / 5 * ih;
+    let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Bewertung je Band der Reihe ${esc(r.name)}">`;
+    s += `<line class="grid" x1="0" x2="${W}" y1="${unten}" y2="${unten}"/>`;
+    plaetze.forEach((pl, i) => {
+      const cx = band * i + band / 2, x = cx - bw / 2;
+      let tip, form = '';
+      if (pl.status === 'gelesen' && pl.bewertung > 0) {
+        const top2 = y(pl.bewertung), rr = Math.min(4, bw / 2);
+        form = `<path class="bar" d="M${x},${unten} V${top2 + rr} Q${x},${top2} ${x + rr},${top2} H${x + bw - rr} Q${x + bw},${top2} ${x + bw},${top2 + rr} V${unten} Z"/>`;
+        if (band >= 20) form += `<text class="val-text" x="${cx}" y="${top2 - 4}" text-anchor="middle">${pl.bewertung}</text>`;
+        tip = `Band ${pl.text}: ${pl.b.basisTitel || pl.b.titel} · ${pl.bewertung} ★${pl.b.datum ? ' · gelesen ' + datumDE(pl.b.datum) : ''}`;
+      } else if (pl.status === 'gelesen') {
+        form = `<rect class="unbew bar" x="${x}" y="${unten - 14}" width="${bw}" height="14" rx="3"/>`;
+        tip = `Band ${pl.text}: ${pl.b.basisTitel || pl.b.titel} · gelesen, nicht bewertet`;
+      } else if (pl.status === 'luecke') {
+        form = `<rect class="luecke-box bar" x="${x}" y="${top}" width="${bw}" height="${ih}" rx="4"/><text class="reihe-text" x="${cx}" y="${top + ih / 2 + 4}" text-anchor="middle">?</text>`;
+        tip = `Band ${pl.text}: nicht gelesen, nicht in deinen Listen`;
+      } else {
+        form = `<rect class="ghost bar" x="${x}" y="${top}" width="${bw}" height="${ih}" rx="4"/>`;
+        tip = `Band ${pl.text}: ${pl.b.basisTitel || pl.b.titel} · ${pl.status === 'aktuell' ? 'wird gerade gelesen' : 'steht auf to-read'}`;
+      }
+      s += `<g class="grp" data-tip="${esc(tip)}"><rect class="hit" x="${band * i}" y="0" width="${band}" height="${H}" tabindex="0" aria-label="${esc(tip)}"/>${form}`;
+      s += `<text class="reihe-text" x="${cx}" y="${H - 6}" text-anchor="middle">${band >= 26 || plaetze.length <= 6 ? '#' : ''}${esc(pl.text)}</text></g>`;
+    });
+    return s + '</svg>';
+  }
+
+  function renderReihen(alle) {
+    const ra = reihenAuswertung(alle, state.alle.filter(b => b.regal === 'to-read' || b.regal === 'currently-reading'));
+    const el = $('reihen');
+    if (!ra.gesamt) { $('reihen-kpis').innerHTML = ''; el.innerHTML = '<p class="muted">Keine gelesenen Bücher.</p>'; $('reihen-hinweis').textContent = ''; return; }
+    const anteil = Math.round(ra.inReihen / ra.gesamt * 100);
+    const stern = (d, n) => d == null ? '–' : `${ca1(d)} ★`;
+    $('reihen-kpis').innerHTML = [
+      kpi('Bücher in Reihen', `${zahl(ra.inReihen)} von ${zahl(ra.gesamt)}`, `${zahl(anteil)} % deiner gelesenen Bücher`),
+      kpi('Angefangene Reihen', zahl(ra.reihen.length), `${zahl(ra.mehrteilig)} davon mit mindestens 2 gelesenen Bänden`),
+      kpi('Ø Bewertung Reihenbände', stern(ra.durchschnittReihen), ra.bewertetReihen ? `aus ${zahl(ra.bewertetReihen)} ${ra.bewertetReihen === 1 ? 'Bewertung' : 'Bewertungen'}` : 'keine Bewertungen'),
+      kpi('Ø Bewertung Einzelbände', stern(ra.durchschnittEinzel), ra.bewertetEinzel ? `aus ${zahl(ra.bewertetEinzel)} ${ra.bewertetEinzel === 1 ? 'Bewertung' : 'Bewertungen'}` : 'keine Bewertungen'),
+    ].join('');
+    if (!ra.reihen.length) { el.innerHTML = '<p class="muted">Keine Reihen erkannt. Titel müssten die Form „Titel (Reihenname, #1)“ haben.</p>'; $('reihen-hinweis').textContent = ''; return; }
+    const breite = Math.round(el.clientWidth || 600) - 24;
+    // Reihen mit nur einem bekannten Band bekommen kein Diagramm, sondern eine Zeile
+    const hatDiagramm = r => r.baende.length + r.luecken.filter(l => l.status === 'fehlt').length >= 2;
+    const maxAnzahl = 15, zeigen = ra.reihen.filter(hatDiagramm).slice(0, maxAnzahl);
+    const einzeln = ra.reihen.filter(r => !hatDiagramm(r));
+    const trendText = { sinkt: 'Bewertung sinkt', steigt: 'Bewertung steigt', gleich: 'Bewertung bleibt gleich' };
+    const bandText = n => `Band ${n}`;
+    const html = zeigen.map(r => {
+      const meta = [`${zahl(r.gelesen)} ${r.gelesen === 1 ? 'Band' : 'Bände'} gelesen`];
+      if (r.durchschnitt != null) meta.push(`Ø ${ca1(r.durchschnitt)} ★`);
+      if (r.trend) meta.push(`${trendText[r.trend]} (${r.erster.bewertung} → ${r.letzter.bewertung} ★)`);
+      const notizen = [];
+      const dazwischen = r.luecken.map(l => `${bandText(l.nummer)}${l.status === 'offen' ? ' (steht auf deiner Liste)' : ''}`);
+      if (dazwischen.length) notizen.push(`Dazwischen nicht gelesen: ${dazwischen.join(', ')}.`);
+      const folgend = r.naechste.filter(x => !r.luecken.some(l => l.nummer === Math.ceil(x.von)));
+      if (folgend.length) notizen.push(`Auf deinen Listen: ${folgend.map(x => `${bandText(x.text)} (${x.status === 'aktuell' ? 'gerade' : 'to-read'})`).join(', ')}.`);
+      return `<div class="reihe"><div class="reihe-kopf"><span class="name">${esc(r.name)}</span><span class="meta">${meta.join(' · ')}</span></div>${reiheSVG(r, breite)}${notizen.length ? `<p class="reihe-notiz">${notizen.join(' ')}</p>` : ''}</div>`;
+    }).join('');
+    const einzelnHtml = einzeln.length
+      ? `<h3 class="badge-titel">Reihen mit einem gelesenen Band</h3><ul class="buchliste">${einzeln.map(r => {
+        const b = r.baende[0];
+        return `<li><span class="wert">${b.bewertung ? b.bewertung + ' ★' : 'unbewertet'}</span><span class="titel">${esc(r.name)}</span><span class="meta">Band ${esc(b.text)} · ${esc(b.basisTitel || b.titel)}${b.datum ? ' · gelesen ' + datumDE(b.datum) : ''}</span></li>`;
+      }).join('')}</ul>` : '';
+    const offenHtml = ra.nurOffen.length
+      ? `<h3 class="badge-titel">Reihen nur auf deinen Listen</h3><ul class="buchliste">${ra.nurOffen.map(r => `<li><span class="titel">${esc(r.name)}</span><span class="meta">${r.baende.map(b => `Band ${esc(b.text)} (${b.status === 'aktuell' ? 'gerade' : 'to-read'})`).join(', ')}</span></li>`).join('')}</ul>` : '';
+    el.innerHTML = html + einzelnHtml + offenHtml + '<div class="tooltip hidden"></div>';
+    $('reihen-hinweis').textContent = ra.reihen.filter(hatDiagramm).length > maxAnzahl ? `${zahl(maxAnzahl)} von ${zahl(ra.reihen.filter(hatDiagramm).length)} Reihen mit Diagramm gezeigt (die mit den meisten gelesenen Bänden).` : '';
   }
 
   /* ---------- Bewertungen ---------- */

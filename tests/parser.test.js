@@ -13,7 +13,7 @@ const block = id => {
 };
 const ctx = vm.createContext({ Intl });
 vm.runInContext(block('konfig') + '\n' + block('kern') + `
-  ;Object.assign(globalThis, { KONFIG, VERGLEICHE, GEBAEUDE, normalisiereEintrag, normalisiereFuerVergleich, findeDubletten, ausreisserListe, datenqualitaet,
+  ;Object.assign(globalThis, { KONFIG, VERGLEICHE, GEBAEUDE, normalisiereEintrag, parseSerie, reihenAuswertung, normalisiereFuerVergleich, findeDubletten, ausreisserListe, datenqualitaet,
     paarSchluessel, leseReihenfolge, meilensteine, stapelHoehe, gebaeudeVergleich, zufallsKandidaten,
     waehleZufall, rueckblick, rueckblickSVG, umbrechen, parseCSV, zeilenZuDatensaetzen, normalisiereBuecher,
     normalisiereAlle, filterNachJahr, berechneKennzahlen, jahresAuswertung, formatStunden, formatTageStunden,
@@ -367,6 +367,69 @@ test('CSV nur mit den 7 Pflichtspalten (ohne Average Rating, Verlag, Regale, Dat
   eq([K.findeDubletten(gelesen).offen.length, K.rueckblick(gelesen, 2024, o).anzahl, K.zufallsKandidaten(alle, 0).kandidaten.length], [0, 1, 1]);
 });
 test('Seite enthält kein confirm()/alert()/prompt() (in eingebetteten Ansichten gesperrt)', () => assert.ok(!/\b(confirm|alert|prompt)\(/.test(block('ui'))));
+
+console.log('\nReihen');
+test('Reihe erkennen: mit Komma, ohne Komma, Apostroph im Namen', () => eq([
+  [K.parseSerie('Die Sterne von Norden (Die sieben Lichter, #1)'), K.parseSerie('Atlas der Nacht (Die sieben Lichter #8)'), K.parseSerie("Meine Freundin (L'etoile #2)")].map(x => [x.name, x.von, x.basisTitel]),
+], [[['Die sieben Lichter', 1, 'Die Sterne von Norden'], ['Die sieben Lichter', 8, 'Atlas der Nacht'], ["L'etoile", 2, 'Meine Freundin']]]));
+test('Reihe erkennen: Sammelband 1-3, Zwischenband 0.5 und 2,5', () => {
+  const a = K.parseSerie('Alle Teile (Die Reihe, #1-3)'), b = K.parseSerie('Vorgeschichte (Die Reihe, #0.5)'), c = K.parseSerie('Zwischenspiel (Die Reihe, #2,5)');
+  eq([[a.von, a.bis, a.text], [b.von, b.bis], [c.von]], [[1, 3, '1–3'], [0.5, 0.5], [2.5]]);
+});
+test('keine Reihe: normaler Titel, Jahr in Klammern, Klammer ohne #', () => eq(
+  [K.parseSerie('Ein Buch'), K.parseSerie('Ein Buch (2019)'), K.parseSerie('Ein Buch (Neuausgabe)'), K.parseSerie('Ein Buch (123, #1)')], [null, null, null, null]));
+test('gleicher Reihenname in anderer Schreibweise ergibt denselben Schlüssel', () => assert.strictEqual(
+  K.parseSerie('A (The Broken Kingdoms, #1)').schluessel, K.parseSerie('B (the broken kingdoms #2)').schluessel));
+test('Titel wird beim Einlesen zerlegt, Originaltitel bleibt erhalten', () => {
+  const b = K.normalisiereEintrag({ 'Exclusive Shelf': 'read', Title: 'Band eins (Meine Reihe, #1)', 'My Rating': '4.0' });
+  eq([b.titel, b.basisTitel, b.serie.name, b.bewertung], ['Band eins (Meine Reihe, #1)', 'Band eins', 'Meine Reihe', 4]);
+});
+
+const mk = (titel, bew, regal = 'read', datum = '2026/01/01', seiten = 300) => K.normalisiereEintrag({ Title: titel, 'My Rating': String(bew), 'Exclusive Shelf': regal, 'Date Read': regal === 'read' ? datum : '', 'Number of Pages': String(seiten) });
+{
+  const g = [5, 5, 5, 3, 4].map((r, i) => mk(`Teil ${i + 1} (Hofreihe, #${i + 1})`, r));
+  const ra = K.reihenAuswertung(g, []);
+  const r = ra.reihen[0];
+  test('Reihe mit 5 Bänden: Ø 4,4, Trend sinkt (5 → 4), keine Lücken', () => eq([r.gelesen, r.durchschnitt.toFixed(1), r.trend, r.erster.bewertung, r.letzter.bewertung, r.luecken], [5, '4.4', 'sinkt', 5, 4, []]));
+}
+test('Trend: steigt, gleich und zu wenig Bewertungen', () => {
+  const t = liste => K.reihenAuswertung(liste.map((r, i) => mk(`T${i} (R, #${i + 1})`, r)), []).reihen[0].trend;
+  eq([t([3, 5]), t([4, 4]), t([4, 5]), t([5, 4]), t([4, 0]), t([5])], ['steigt', 'gleich', 'steigt', 'sinkt', null, null]);
+});
+test('Lücke zwischen gelesenen Bänden: Band 3 auf der Wunschliste, Band 4 unbekannt', () => {
+  const g = [mk('A (S, #1)', 4), mk('B (S, #2)', 4), mk('E (S, #5)', 3)];
+  const o = [mk('C (S, #3)', 0, 'to-read'), mk('F (S, #6)', 0, 'currently-reading')];
+  const r = K.reihenAuswertung(g, o).reihen[0];
+  eq([r.luecken, r.naechste.map(x => [x.text, x.status]), r.gelesen, r.offen], [[{ nummer: 3, status: 'offen' }, { nummer: 4, status: 'fehlt' }], [['3', 'wunsch'], ['6', 'aktuell']], 3, 2]);
+});
+test('Sammelband #1-3 deckt Band 1 bis 3 ab, keine Lücke zu Band 4', () => {
+  const r = K.reihenAuswertung([mk('Alles (S, #1-3)', 5), mk('Vier (S, #4)', 4)], []).reihen[0];
+  eq([r.luecken, r.gelesen], [[], 2]);
+});
+test('Nur gelesene Reihen: eine Reihe nur auf to-read erscheint nicht', () => eq(
+  K.reihenAuswertung([mk('A (S, #1)', 4)], [mk('B (Andere, #1)', 0, 'to-read')]).reihen.map(r => r.name), ['S']));
+test('Reihenname mit unterschiedlicher Schreibweise wird zusammengefasst', () => {
+  const r = K.reihenAuswertung([mk('A (The Broken Kingdoms, #1)', 4), mk('B (the broken kingdoms #2)', 4)], []).reihen;
+  eq([r.length, r[0].gelesen], [1, 2]);
+});
+test('Reihenfolge der Liste: meiste gelesene Bände zuerst, dann alphabetisch', () => eq(
+  K.reihenAuswertung([mk('a (Zeta, #1)', 4), mk('b (Alpha, #1)', 4), mk('c (Beta, #1)', 4), mk('d (Beta, #2)', 4)], []).reihen.map(r => r.name), ['Beta', 'Alpha', 'Zeta']));
+const ra = K.reihenAuswertung(buecher, K.normalisiereAlle(daten, {}).filter(b => b.regal !== 'read'));
+test('Beispiel-CSV: 2 von 22 Büchern in Reihen, 1 Reihe (Kartograf-Reihe, #1 und #2)', () => eq(
+  [ra.gesamt, ra.inReihen, ra.einzel, ra.reihen.length, ra.reihen[0].name, ra.reihen[0].gelesen, ra.mehrteilig], [22, 2, 20, 1, 'Kartograf-Reihe', 2, 1]));
+test('Beispiel-CSV: Ø Reihenbände 4,5 (2 Bewertungen) und Einzelbände 3,88 (17)', () => eq(
+  [ra.durchschnittReihen, ra.bewertetReihen, ra.durchschnittEinzel.toFixed(2), ra.bewertetEinzel], [4.5, 2, '3.88', 17]));
+test('Beispiel-CSV: Bewertung steigt von 4 auf 5', () => eq([ra.reihen[0].trend, ra.reihen[0].erster.basisTitel, ra.reihen[0].letzter.basisTitel], ['steigt', 'Der leise Kartograf', 'Der Kartograf und das Meer']));
+test('Ausgeschlossene Dublette: Reihe verliert Band 1', () => {
+  const ohneDup = buecher.filter(b => b.id !== 'gr:900005');
+  const r = K.reihenAuswertung(ohneDup, []);
+  eq([r.inReihen, r.reihen[0].gelesen, r.reihen[0].luecken], [1, 1, []]);
+});
+test('Reihen nur auf den Listen werden getrennt ausgewiesen', () => {
+  const r = K.reihenAuswertung([mk('A (S, #1)', 4)], [mk('B (Neu, #1)', 0, 'currently-reading'), mk('C (Neu, #2)', 0, 'to-read'), mk('D (Alt, #1)', 0, 'to-read')]);
+  eq([r.reihen.map(x => x.name), r.nurOffen.map(x => [x.name, x.baende.map(b => b.status)])], [['S'], [['Alt', ['wunsch']], ['Neu', ['aktuell', 'wunsch']]]]);
+});
+test('leere Eingaben', () => eq([K.reihenAuswertung([], []).reihen, K.reihenAuswertung([], []).durchschnittReihen], [[], null]));
 
 console.log('\nFormatierung');
 test('deutsche Tausenderpunkte', () => assert.strictEqual(K.zahl(1234567), '1.234.567'));
