@@ -16,7 +16,7 @@ Wertet den CSV-Export deiner Goodreads-Bibliothek aus. Alles läuft lokal im Bro
 
 Zum Ausprobieren gibt es `beispiel/goodreads_beispiel.csv` mit 26 fiktiven Einträgen: 22 gelesene Bücher aus 2021–2026, 3 auf `to-read`, 1 auf `currently-reading`. Enthalten sind alle Sonderfälle: Bücher ohne Seitenzahl (leer und 0), ohne Lesedatum, ohne Bewertung, ohne Verlag und ohne Erscheinungsjahr, ein Titel mit Komma und Anführungszeichen, eine mehrzeilige Rezension, ein zweimal gelesenes Buch, eine Dublette („Der leise Kartograf“), ein Seiten-Ausreißer (12 Seiten), mehrere Bücher derselben Autoren und ein Klassiker von 1938.
 
-Die App ist in Tabs gegliedert: Übersicht, Jahre, Autoren & Bücher, Bewertungen, Spielerisches, Datenqualität. Der Zeitraum-Filter oben gilt für alle Tabs.
+Die App ist in Tabs gegliedert: Übersicht, Jahre, Autoren & Bücher, Kategorien, Bewertungen, Spielerisches, Datenqualität. Der Zeitraum-Filter oben gilt für alle Tabs.
 
 ## Was gezählt wird
 
@@ -31,6 +31,7 @@ Die App ist in Tabs gegliedert: Übersicht, Jahre, Autoren & Bücher, Bewertunge
 - **Zeit bis zum Lesen:** Tage zwischen *Date Added* und *Date Read*. Das ist kein Lesetempo, sondern die Zeit, die ein Buch im Regal lag. Bücher, die erst nach dem Lesen bei Goodreads erfasst wurden, fallen heraus.
 - **Top-Autoren, Verlage:** Top 10; bei Autoren zählt der Hauptautor aus `Author`. Bücher ohne Verlag werden ausgewiesen und nicht mitgezählt.
 - **Reihen:** werden am Titel erkannt („Titel (Reihenname, #3)“, auch ohne Komma, als Sammelband „#1-3“ oder als Zwischenband „#0.5“). Pro Reihe siehst du die Bewertung je Band, den Durchschnitt, die Entwicklung (erster gegen letzten bewerteten Band, ab 1 Stern Unterschied), nicht gelesene Bände dazwischen und Bände auf `to-read` bzw. `currently-reading`. Die Auswertung gilt für alle Jahre und ignoriert den Zeitraum-Filter. Reihen mit nur einem gelesenen Band stehen kompakt in einer Liste.
+- **Kategorien:** Die Goodreads-CSV enthält keine Genres. Im Tab „Kategorien“ ordnest du deinen Autoren eine Kategorie zu (Liste in `KONFIG.kategorien`, in der App ergänz- und löschbar) und kannst für einzelne Bücher eine Ausnahme wählen. Hast du bei Goodreads eigene Regale, deren Name einer Kategorie entspricht (Schreibweise egal, z. B. „krimi-thriller“ für „Krimi & Thriller“), werden sie automatisch übernommen. Vorrang: einzelnes Buch, dann Regal, dann Autor. Die Auswertung (Bücher, Seiten, Stunden, Ø Bewertung je Kategorie) folgt dem Zeitraum-Filter, die Zuordnung gilt für alle Jahre und liegt im `localStorage`.
 - **Seitenlängen:** unter 200, 200–399, 400–600, über 600 Seiten. Bücher ohne Seitenzahl bleiben draußen.
 - **Erscheinungsjahr:** nur `Original Publication Year`. Klassiker sind vor 1950 erschienen, Neuerscheinungen in den letzten 5 Jahren. Fehlende Werte werden ausgewiesen.
 - **Regale:** nur eigene Regale aus `Bookshelves` (keine echten Genres); `read`, `to-read` und `currently-reading` sind herausgefiltert.

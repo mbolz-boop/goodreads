@@ -15,7 +15,7 @@ const ctx = vm.createContext({ Intl });
 vm.runInContext(block('konfig') + '\n' + block('kern') + `
   ;Object.assign(globalThis, { KONFIG, VERGLEICHE, GEBAEUDE, normalisiereEintrag, parseSerie, reihenAuswertung, normalisiereFuerVergleich, findeDubletten, ausreisserListe, datenqualitaet,
     paarSchluessel, leseReihenfolge, meilensteine, durchschnittSeitenProBuch, stapelHoehe, gebaeudeVergleich, zufallsKandidaten,
-    waehleZufall, leselisteUebersicht, zaehleRegale, rueckblick, rueckblickSVG, umbrechen, parseCSV, zeilenZuDatensaetzen, normalisiereBuecher,
+    kategorieVonBuch, kategorienAuswertung, autorenFuerZuordnung, waehleZufall, leselisteUebersicht, zaehleRegale, rueckblick, rueckblickSVG, umbrechen, parseCSV, zeilenZuDatensaetzen, normalisiereBuecher,
     normalisiereAlle, filterNachJahr, berechneKennzahlen, jahresAuswertung, formatStunden, formatTageStunden,
     waehleVergleiche, rundeVerhaeltnis, zahl, jahreszielStatus, zeitBisZumLesen, monatsMatrix, wochentage,
     streaksUndPausen, tageZwischen, median, topGruppen, seitenKlassen, erscheinungsStatistik,
@@ -487,6 +487,67 @@ test('Reihen nur auf den Listen werden getrennt ausgewiesen', () => {
   eq([r.reihen.map(x => x.name), r.nurOffen.map(x => [x.name, x.baende.map(b => b.status)])], [['S'], [['Alt', ['wunsch']], ['Neu', ['aktuell', 'wunsch']]]]);
 });
 test('leere Eingaben', () => eq([K.reihenAuswertung([], []).reihen, K.reihenAuswertung([], []).durchschnittReihen], [[], null]));
+
+console.log('\nKategorien');
+const KATS = ['Fantasy', 'Roman', 'Sachbuch', 'Krimi & Thriller'];   // Namen wie Regale der Beispiel-CSV
+const KB = ['Epos', 'Alltag', 'Wissen'];                              // Namen ohne Überschneidung mit Regalen
+const leer = () => ({ autor: {}, buch: {} });
+test('Ohne Zuordnung entscheiden nur eigene Regale mit gleichem Namen: Roman 7, Fantasy 3, Sachbuch 3 (Regal „krimi“ ≠ „Krimi & Thriller“)', () => {
+  const a = K.kategorienAuswertung(buecher, leer(), KATS, opt);
+  eq([a.kategorien.map(k => [k.name, k.buecher]), a.zugeordnet, a.ohne.buecher, a.quellen], [[['Roman', 7], ['Fantasy', 3], ['Sachbuch', 3]], 13, 9, { buch: 0, regal: 13, autor: 0 }]);
+});
+test('Autor-Zuordnung: Henrik Bauer → Epos: 3 Bücher, 3.014 Seiten, Ø 4,5 (2 Bewertungen, wenig Aussagekraft)', () => {
+  const a = K.kategorienAuswertung(buecher, { autor: { 'Henrik Bauer': 'Epos' }, buch: {} }, KB, opt);
+  const e = a.kategorien.find(k => k.name === 'Epos');
+  eq([e.buecher, e.seiten, e.bewertet, e.durchschnitt, e.wenigAussage, e.quellen.autor, a.ohne.buecher], [3, 3014, 2, 4.5, true, 3, 19]);
+});
+test('Ø Bewertung ohne Hinweis ab 3 Bewertungen', () => {
+  const a = K.kategorienAuswertung(buecher, { autor: { 'Henrik Bauer': 'Epos', 'Ruth Albers': 'Epos' }, buch: {} }, KB, opt);
+  const e = a.kategorien.find(k => k.name === 'Epos');
+  eq([e.bewertet, e.durchschnitt, e.wenigAussage], [4, 4.5, false]);
+});
+test('Vorrang: einzelnes Buch vor Regal vor Autor', () => {
+  const b = K.normalisiereEintrag({ 'Exclusive Shelf': 'read', Title: 'T', Author: 'A', Bookshelves: 'fantasy, roman', 'Book Id': '1' });
+  const k = kat => K.kategorieVonBuch(b, kat, KATS);
+  eq([k({ autor: { A: 'Sachbuch' }, buch: {} }), k({ autor: { A: 'Sachbuch' }, buch: { 'gr:1': 'Krimi & Thriller' } }), k(leer())],
+    [{ name: 'Fantasy', quelle: 'regal' }, { name: 'Krimi & Thriller', quelle: 'buch' }, { name: 'Fantasy', quelle: 'regal' }]);
+});
+test('Autor gilt, wenn kein Regal passt', () => {
+  const b = K.normalisiereEintrag({ 'Exclusive Shelf': 'read', Title: 'T', Author: 'A', Bookshelves: 'wunschliste', 'Book Id': '3' });
+  eq(K.kategorieVonBuch(b, { autor: { A: 'Sachbuch' }, buch: {} }, KATS), { name: 'Sachbuch', quelle: 'autor' });
+});
+test('Regalname passt auch mit anderer Schreibweise („krimi-thriller“ → „Krimi & Thriller“)', () => {
+  const b = K.normalisiereEintrag({ 'Exclusive Shelf': 'read', Title: 'T', Author: 'A', Bookshelves: 'krimi-thriller', 'Book Id': '2' });
+  assert.strictEqual(K.kategorieVonBuch(b, leer(), KATS).name, 'Krimi & Thriller');
+});
+test('Zuordnung zu einer Kategorie, die es nicht (mehr) gibt, zählt nicht', () => {
+  const a = K.kategorienAuswertung(buecher, { autor: { 'Henrik Bauer': 'Gelöscht' }, buch: {} }, KB, opt);
+  eq([a.zugeordnet, a.ohne.buecher], [0, 22]);
+});
+test('Summe aller Kategorien und „ohne“ ergibt immer alle Bücher (22)', () => {
+  const a = K.kategorienAuswertung(buecher, { autor: { 'Henrik Bauer': 'Epos', 'Ruth Albers': 'Wissen' }, buch: { 'gr:900019': 'Alltag' } }, KB, opt);
+  eq([a.gesamt, a.zugeordnet + a.ohne.buecher, a.kategorien.reduce((x, k) => x + k.titel, 0) + a.ohne.titel], [22, 22, 22]);
+});
+test('Einzelnes Buch überschreibt den Autor: Kartograf-Dublette → Alltag, Rest bleibt Epos', () => {
+  const a = K.kategorienAuswertung(buecher, { autor: { 'Henrik Bauer': 'Epos' }, buch: { 'gr:900019': 'Alltag' } }, KB, opt);
+  eq([a.kategorien.map(k => [k.name, k.buecher])], [[['Epos', 2], ['Alltag', 1]]]);
+});
+test('Mehrfach-Schalter zählt wiederholt gelesene Bücher mehrfach, Bewertungen aber je Titel', () => {
+  const a = K.kategorienAuswertung(buecher, { autor: { 'Henrik Bauer': 'Epos' }, buch: {} }, KB, { ...opt, mehrfach: true });
+  const e = a.kategorien.find(k => k.name === 'Epos');
+  eq([e.buecher, e.titel, e.bewertet], [4, 3, 2]);
+});
+test('Stunden je Kategorie = Seiten × Minuten pro Seite', () => {
+  const a = K.kategorienAuswertung(buecher, { autor: { 'Henrik Bauer': 'Epos' }, buch: {} }, KB, { ...opt, minutenProSeite: 3 });
+  assert.strictEqual(a.kategorien.find(k => k.name === 'Epos').minuten, 3014 * 3);
+});
+test('Autorenliste für die Zuordnung: Henrik Bauer (3) zuerst, dann nach Name; Bücher alphabetisch', () => {
+  const l = K.autorenFuerZuordnung(buecher);
+  eq([l[0].autor, l[0].buecher.length, l[1].buecher.length, l.length, l[0].buecher.map(b => b.titel)],
+    ['Henrik Bauer', 3, 2, 16, ['Der Kartograf und das Meer (Kartograf-Reihe, #2)', 'Der leise Kartograf', 'Der leise Kartograf (Kartograf-Reihe, #1)']]);
+});
+test('Bücher ohne Autor erscheinen nicht in der Zuordnungsliste, leere Eingaben', () => eq(
+  [K.autorenFuerZuordnung([{ autor: '', titel: 'x' }]).length, K.kategorienAuswertung([], leer(), KATS, opt).gesamt], [0, 0]));
 
 console.log('\nFormatierung');
 test('deutsche Tausenderpunkte', () => assert.strictEqual(K.zahl(1234567), '1.234.567'));

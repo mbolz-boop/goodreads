@@ -22,6 +22,8 @@ const KONFIG = {
   // Recherche: Papier mit 80 g/m² ist etwa 0,10 mm je Blatt dick, Buchpapier meist 0,08 bis 0,12 mm.
   // Eine Seite ist ein halbes Blatt, also etwa 0,05 mm. Der Umschlag ist nicht eingerechnet.
   seitenDickeMm: 0.05,
+  // Kategorien für den Tab „Kategorien“ (in der App ergänzbar und löschbar). Die Goodreads-CSV enthält keine Genres.
+  kategorien: ['Fantasy', 'Romantasy', 'Krimi & Thriller', 'Historischer Roman', 'Liebesroman', 'Roman', 'Jugendbuch', 'Sachbuch', 'Sonstiges'],
   // Ausreißer-Warnung: Seitenzahlen unter/über diesen Werten gelten als Verdachtsfall (im Browser änderbar)
   ausreisserMin: 30,
   ausreisserMax: 1500,
@@ -218,6 +220,7 @@ select, input[type=number] {
   border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px;
 }
 input[type=number] { width: 5.5em; }
+input[type=text] { font: inherit; font-size: .92rem; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; width: min(16em, 100%); }
 input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
 .dateiinfo { margin-left: auto; font-size: .82rem; color: var(--text-3); }
 
@@ -372,6 +375,19 @@ td.wenig { color: var(--warn-text); font-size: .82rem; white-space: normal; }
 .viz .luecke-box { fill: none; stroke: var(--text-3); stroke-width: 1.5; stroke-dasharray: 1.5 3; }
 .viz .unbew { fill: none; stroke: var(--text-3); stroke-width: 1.5; }
 .viz .reihe-text { fill: var(--text-2); font-size: 11px; }
+/* Kategorien */
+.kat-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.kat-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 4px 6px 4px 12px; font-size: .9rem; }
+.kat-chip button { border: 0; background: transparent; padding: 2px 8px; border-radius: 999px; color: var(--text-2); font-size: 1rem; line-height: 1; }
+.kat-chip button:hover { background: var(--border); color: var(--danger); }
+.kat-autor { background: var(--surface-2); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+.kat-kopf { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.kat-kopf .name { font-weight: 600; flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; }
+.kat-kopf .meta { font-size: .82rem; color: var(--text-3); }
+.kat-buecher { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.kat-buecher li { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; justify-content: space-between; background: var(--surface); border-radius: 8px; padding: 6px 10px; font-size: .9rem; }
+.kat-buecher .titel { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
+.kat-buecher .quelle { font-size: .78rem; color: var(--text-3); }
 /* Listen */
 .zwei-spalten { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 16px; }
 .zwei-spalten h3 { font-size: .95rem; margin: 0 0 8px; color: var(--text-2); }
@@ -459,6 +475,7 @@ footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top
       <button type="button" role="tab" id="tab-uebersicht" aria-controls="panel-uebersicht" data-tab="uebersicht">Übersicht</button>
       <button type="button" role="tab" id="tab-jahre" aria-controls="panel-jahre" data-tab="jahre">Jahre</button>
       <button type="button" role="tab" id="tab-autoren" aria-controls="panel-autoren" data-tab="autoren">Autoren &amp; Bücher</button>
+      <button type="button" role="tab" id="tab-kategorien" aria-controls="panel-kategorien" data-tab="kategorien">Kategorien</button>
       <button type="button" role="tab" id="tab-bewertungen" aria-controls="panel-bewertungen" data-tab="bewertungen">Bewertungen</button>
       <button type="button" role="tab" id="tab-spiel" aria-controls="panel-spiel" data-tab="spiel">Spielerisches</button>
       <button type="button" role="tab" id="tab-qualitaet" aria-controls="panel-qualitaet" data-tab="qualitaet">Datenqualität</button>
@@ -593,6 +610,44 @@ footer { text-align: center; color: var(--text-3); font-size: .82rem; margin-top
         <p class="erklaerung"><strong>Hinweis:</strong> Das sind nur deine eigenen Regale (Spalte <em>Bookshelves</em>) und keine echten Genres. <em>read</em>, <em>to-read</em> und <em>currently-reading</em> sind herausgefiltert.</p>
         <div class="viz" id="regale"></div>
         <p class="chart-hinweis" id="regale-hinweis"></p>
+      </section>
+    </div>
+
+    <!-- Tab: Kategorien -->
+    <div class="tab-panel" role="tabpanel" id="panel-kategorien" aria-labelledby="tab-kategorien" data-panel="kategorien">
+      <p class="zeitraum-zeile"></p>
+      <section class="card">
+        <div class="chart-head">
+          <h2>Auswertung nach Kategorie</h2>
+          <div class="seg" id="seg-kat" role="group" aria-label="Diagramm zeigt">
+            <button type="button" data-kat="buecher" aria-pressed="true">Bücher</button>
+            <button type="button" data-kat="seiten" aria-pressed="false">Seiten</button>
+          </div>
+        </div>
+        <p class="erklaerung"><strong>Hinweis:</strong> Die Goodreads-CSV enthält keine Genres. Die Kategorien kommen deshalb von dir: Ordne unten deinen Autoren (bei Bedarf einzelnen Büchern) eine Kategorie zu. Hast du bei Goodreads eigene Regale, deren Name einer Kategorie entspricht, werden diese automatisch übernommen.</p>
+        <div class="kpis" id="kat-kpis"></div>
+        <div class="viz" id="kat-chart" style="margin-top:16px"></div>
+        <div class="tbl-wrap"><table id="tbl-kat"></table></div>
+        <p class="chart-hinweis" id="kat-hinweis"></p>
+      </section>
+
+      <section class="card">
+        <h2>Kategorien verwalten</h2>
+        <p class="erklaerung">Eigene Kategorien hinzufügen oder nicht benötigte löschen. Beim Löschen werden auch die Zuordnungen zu dieser Kategorie entfernt.</p>
+        <div class="kat-chips" id="kat-chips"></div>
+        <form id="kat-neu" class="toolbar" style="margin-top:12px">
+          <label>Neue Kategorie <input type="text" id="inp-kat-neu" maxlength="40" placeholder="z. B. Dystopie" autocomplete="off"></label>
+          <button type="submit">Hinzufügen</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="chart-head">
+          <h2>Zuordnung</h2>
+          <label class="inline"><input type="checkbox" id="chk-kat-offen"> Nur Autoren ohne Kategorie</label>
+        </div>
+        <p class="erklaerung">Die Kategorie eines Autors gilt für alle seine Bücher. Über „Bücher“ kannst du für einzelne Bücher eine andere Kategorie wählen. Die Zuordnung gilt für alle Jahre und wird nur in deinem Browser gespeichert.</p>
+        <div id="kat-liste"></div>
       </section>
     </div>
 
@@ -1224,6 +1279,54 @@ function bestenliste(buecher) {
     }));
 }
 
+/* ---------- Kategorien ---------- */
+
+/** Kategorie eines Buchs. kat = {autor: {Name: Kategorie}, buch: {ID: Kategorie}}.
+    Vorrang: einzelnes Buch → eigenes Goodreads-Regal mit gleichem Namen wie eine Kategorie → Autor. */
+function kategorieVonBuch(b, kat, kategorien) {
+  const gueltig = n => typeof n === 'string' && kategorien.includes(n);
+  if (gueltig(kat.buch[b.id])) return { name: kat.buch[b.id], quelle: 'buch' };
+  const regale = (b.regale || []).map(normalisiereFuerVergleich);
+  const nachRegal = kategorien.find(k => regale.includes(normalisiereFuerVergleich(k)));
+  if (nachRegal) return { name: nachRegal, quelle: 'regal' };
+  if (gueltig(kat.autor[b.autor])) return { name: kat.autor[b.autor], quelle: 'autor' };
+  return null;
+}
+
+/** Auswertung je Kategorie. Bücher ohne Kategorie stehen in `ohne`. Bewertungen zählen je Titel. */
+function kategorienAuswertung(buecher, kat, kategorien, opt, minBewertet = 3) {
+  const neuer = name => ({ name, buecher: 0, titel: 0, seiten: 0, minuten: 0, bewertet: 0, summe: 0, durchschnitt: null, wenigAussage: true, quellen: { buch: 0, regal: 0, autor: 0 } });
+  const map = new Map(kategorien.map(n => [n, neuer(n)]));
+  const ohne = neuer(null);
+  const quellen = { buch: 0, regal: 0, autor: 0 };
+  for (const b of buecher) {
+    const k = kategorieVonBuch(b, kat, kategorien);
+    const e = k ? map.get(k.name) : ohne;
+    const w = gewicht(b, opt);
+    e.buecher += w; e.titel++; e.seiten += (b.seiten ?? 0) * w; e.minuten += (b.seiten ?? 0) * w * opt.minutenProSeite;
+    if (b.bewertung > 0) { e.bewertet++; e.summe += b.bewertung; }
+    if (k) { e.quellen[k.quelle]++; quellen[k.quelle]++; }
+  }
+  const fertig = e => { e.durchschnitt = e.bewertet ? e.summe / e.bewertet : null; e.wenigAussage = e.bewertet < minBewertet; return e; };
+  const liste = [...map.values()].filter(e => e.titel > 0).map(fertig)
+    .sort((a, b) => b.buecher - a.buecher || a.name.localeCompare(b.name, 'de'));
+  fertig(ohne);
+  const zugeordnet = liste.reduce((a, e) => a + e.buecher, 0);
+  return { kategorien: liste, ohne, zugeordnet, gesamt: zugeordnet + ohne.buecher, quellen };
+}
+
+/** Autoren mit ihren Büchern für die Zuordnung, meiste Bücher zuerst. Bücher ohne Autor bleiben draußen. */
+function autorenFuerZuordnung(buecher) {
+  const map = new Map();
+  for (const b of buecher) {
+    if (!b.autor) continue;
+    if (!map.has(b.autor)) map.set(b.autor, []);
+    map.get(b.autor).push(b);
+  }
+  return [...map.entries()].map(([autor, liste]) => ({ autor, buecher: liste.sort((a, b) => a.titel.localeCompare(b.titel, 'de')) }))
+    .sort((a, b) => b.buecher.length - a.buecher.length || a.autor.localeCompare(b.autor, 'de'));
+}
+
 /* ---------- Datenqualität ---------- */
 
 /** Titel/Autor für den Dublettenvergleich: Kleinschreibung, ohne Reihenangaben in Klammern, ohne Satzzeichen */
@@ -1571,6 +1674,7 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     dateidatum: 'lesetracker.dateidatum',   // Änderungsdatum der geladenen Datei (ms)
     seiten: 'lesetracker.seiten',
     einstellungen: 'lesetracker.einstellungen',
+    kat: 'lesetracker.kategorien',   // {autor: {Name: Kategorie}, buch: {ID: Kategorie}}
     dq: 'lesetracker.datenqualitaet',   // {keine: [Paarschlüssel], ausgeschlossen: [Buch-IDs]}
   };
   const ls = {
@@ -1593,9 +1697,10 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     speicherWarnung: false,
     overrides: ladeJSON(SPEICHER.seiten, {}),
     dq: Object.assign({ keine: [], ausgeschlossen: [] }, ladeJSON(SPEICHER.dq, {})),
+    kat: Object.assign({ autor: {}, buch: {} }, ladeJSON(SPEICHER.kat, {})),
     lese: [],      // alle gelesenen Bücher inkl. ausgeschlossener Dubletten
     einst: Object.assign(
-      { jahr: 'alle', mehrfach: false, minutenProSeite: KONFIG.minutenProSeite, diagramm: 'buecher', autorenModus: 'buecher', tab: 'uebersicht', jahresziel: KONFIG.jahresziel, seitenDickeMm: KONFIG.seitenDickeMm, zufallMax: '', ausreisserMin: KONFIG.ausreisserMin, ausreisserMax: KONFIG.ausreisserMax },
+      { jahr: 'alle', mehrfach: false, minutenProSeite: KONFIG.minutenProSeite, diagramm: 'buecher', autorenModus: 'buecher', katModus: 'buecher', katNurOffen: false, kategorien: KONFIG.kategorien.slice(), tab: 'uebersicht', jahresziel: KONFIG.jahresziel, seitenDickeMm: KONFIG.seitenDickeMm, zufallMax: '', ausreisserMin: KONFIG.ausreisserMin, ausreisserMax: KONFIG.ausreisserMax },
       ladeJSON(SPEICHER.einstellungen, {})
     ),
   };
@@ -1606,6 +1711,11 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
   state.zufallId = null;
   state.zufallGesehen = new Set(); // bereits gezeigte Bücher dieser Runde
   state.zufallListeOffen = false;  // Liste der Leseliste ein-/ausgeklappt
+  if (!Array.isArray(state.einst.kategorien) || !state.einst.kategorien.every(k => typeof k === 'string')) state.einst.kategorien = KONFIG.kategorien.slice();
+  if (!state.kat.autor || typeof state.kat.autor !== 'object') state.kat.autor = {};
+  if (!state.kat.buch || typeof state.kat.buch !== 'object') state.kat.buch = {};
+  state.katOffen = new Set();      // Autoren, deren Bücherliste ausgeklappt ist
+  state.katAnzahl = 40;            // so viele Autoren werden gezeigt ("Mehr anzeigen")
   if (!Array.isArray(state.dq.keine)) state.dq.keine = [];
   if (!Array.isArray(state.dq.ausgeschlossen)) state.dq.ausgeschlossen = [];
   if (!(state.einst.ausreisserMin >= 1 && state.einst.ausreisserMax > state.einst.ausreisserMin)) { state.einst.ausreisserMin = KONFIG.ausreisserMin; state.einst.ausreisserMax = KONFIG.ausreisserMax; }
@@ -1689,6 +1799,7 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
       case 'uebersicht': renderKennzahlen(k, jahr); renderVergleiche(k); renderJahresziel(alle, o); break;
       case 'jahre': renderJahre(alle, o); renderLeseverhalten(alle, gefiltert, o); break;
       case 'autoren': renderBuecherAutoren(gefiltert, o); renderReihen(alle); break;
+      case 'kategorien': renderKategorien(alle, gefiltert, o); break;
       case 'bewertungen': renderBewertungen(gefiltert, o); break;
       case 'spiel': renderSpiel(alle, gefiltert, o); break;
       case 'qualitaet': renderDatenqualitaet(alle, o); renderOhneSeiten(alle); break;
@@ -1724,6 +1835,8 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
       : '';
     document.querySelectorAll('#seg-diagramm button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.modus === state.einst.diagramm)));
     document.querySelectorAll('#seg-autoren button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.aut === state.einst.autorenModus)));
+    document.querySelectorAll('#seg-kat button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.kat === state.einst.katModus)));
+    $('chk-kat-offen').checked = !!state.einst.katNurOffen;
     document.querySelectorAll('.zeitraum-zeile').forEach(p => { p.innerHTML = 'Auswertung für: <strong>' + esc(zeitraumText(state.einst.jahr)) + '</strong> (Filter oben)'; });
   }
 
@@ -2006,6 +2119,64 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
       r.gesamt > r.liste.length ? `Top ${r.liste.length} von ${zahl(r.gesamt)} Regalen. Ein Buch kann in mehreren Regalen stehen.` : (r.liste.length ? 'Ein Buch kann in mehreren Regalen stehen.' : ''),
       ohneText(r.ohne, 'in keinem eigenen Regal'),
     ].filter(Boolean).join(' ');
+  }
+
+  /* ---------- Kategorien ---------- */
+  function speichereKat() { ls.set(SPEICHER.kat, JSON.stringify(state.kat)); }
+
+  function renderKategorien(alle, g, o) {
+    const kategorien = state.einst.kategorien;
+    const a = kategorienAuswertung(g, state.kat, kategorien, o);
+    const modus = state.einst.katModus;
+    // Kennzahlen
+    $('kat-kpis').innerHTML = [
+      kpi('Zugeordnete Bücher', `${zahl(a.zugeordnet)} von ${zahl(a.gesamt)}`, a.gesamt ? `${zahl(Math.round(a.zugeordnet / a.gesamt * 100))} % im gewählten Zeitraum` : 'keine Bücher im gewählten Zeitraum'),
+      kpi('Kategorien in Benutzung', zahl(a.kategorien.length), `von ${zahl(kategorien.length)} angelegten`),
+      kpi('Häufigste Kategorie', a.kategorien[0] ? esc(a.kategorien[0].name) : '–', a.kategorien[0] ? `${zahl(a.kategorien[0].buecher)} ${buecherWort(a.kategorien[0].buecher)} · ${zahl(Math.round(a.kategorien[0].seiten))} Seiten` : '', 'textwert'),
+    ].join('');
+    const el = $('kat-chart');
+    if (!a.gesamt) { el.innerHTML = '<p class="muted">Keine Bücher im gewählten Zeitraum.</p>'; $('tbl-kat').innerHTML = ''; $('kat-hinweis').textContent = ''; }
+    else if (!a.kategorien.length) { el.innerHTML = '<p class="muted">Noch keine Bücher zugeordnet. Wähle unten für deine Autoren eine Kategorie.</p>'; $('tbl-kat').innerHTML = ''; $('kat-hinweis').textContent = ''; }
+    else {
+      hBalkenSVG(el, a.kategorien.map(k => ({
+        label: k.name, wert: modus === 'seiten' ? k.seiten : k.buecher,
+        valText: modus === 'seiten' ? `${zahl(k.seiten)} Seiten` : `${zahl(k.buecher)} ${buecherWort(k.buecher)}`,
+        tip: `${k.name}: ${zahl(k.buecher)} ${buecherWort(k.buecher)} · ${zahl(k.seiten)} Seiten · ${formatStunden(k.minuten)}${k.durchschnitt != null ? ' · Ø ' + zahl1(Math.round(k.durchschnitt * 10) / 10) + ' ★' : ''}`,
+      })), { aria: `Bücher nach Kategorie, nach ${modus === 'seiten' ? 'Seiten' : 'Büchern'}` });
+      const zeile = (k, name) => `<tr><td>${name}</td><td>${zahl(k.buecher)}</td><td>${a.gesamt ? zahl(Math.round(k.buecher / a.gesamt * 100)) + ' %' : '–'}</td><td>${zahl(k.seiten)}</td><td>${formatStunden(k.minuten)}</td><td>${k.durchschnitt != null ? zahl1(Math.round(k.durchschnitt * 10) / 10) + ' ★' : '–'}${k.durchschnitt != null && k.wenigAussage ? ' <span title="weniger als 3 bewertete Bücher">⚠</span>' : ''}</td></tr>`;
+      $('tbl-kat').innerHTML = '<thead><tr><th>Kategorie</th><th>Bücher</th><th>Anteil</th><th>Seiten</th><th>Stunden</th><th>Ø Bewertung</th></tr></thead><tbody>' +
+        a.kategorien.map(k => zeile(k, esc(k.name))).join('') + (a.ohne.titel ? zeile(a.ohne, '<em>Ohne Kategorie</em>') : '') + '</tbody>';
+      const hinweise = [];
+      if (a.ohne.titel) hinweise.push(`${zahl(a.ohne.titel)} ${buecherWort(a.ohne.titel)} ohne Kategorie.`);
+      if (a.kategorien.some(k => k.durchschnitt != null && k.wenigAussage)) hinweise.push('⚠ = weniger als 3 bewertete Bücher, geringe Aussagekraft.');
+      if (a.quellen.regal) hinweise.push(`${zahl(a.quellen.regal)} ${buecherWort(a.quellen.regal)} über eigene Goodreads-Regale zugeordnet.`);
+      $('kat-hinweis').textContent = hinweise.join(' ');
+    }
+
+    // Kategorien verwalten
+    $('kat-chips').innerHTML = kategorien.length
+      ? kategorien.map(k => `<span class="kat-chip">${esc(k)}<button type="button" data-kat-weg="${esc(k)}" aria-label="Kategorie ${esc(k)} löschen">×</button></span>`).join('')
+      : '<span class="muted">Keine Kategorien angelegt.</span>';
+
+    // Zuordnung: alle Autoren (unabhängig vom Zeitraum-Filter)
+    const optionen = (aktuell, leerText) => `<option value="">${leerText}</option>` + kategorien.map(k => `<option value="${esc(k)}"${k === aktuell ? ' selected' : ''}>${esc(k)}</option>`).join('');
+    const quelleText = { buch: 'einzeln gewählt', regal: 'aus Goodreads-Regal', autor: 'wie Autor' };
+    let autoren = autorenFuerZuordnung(alle);
+    const gueltig = n => kategorien.includes(n);
+    const offeneAutoren = autoren.filter(x => !gueltig(state.kat.autor[x.autor]) && x.buecher.some(b => !kategorieVonBuch(b, state.kat, kategorien)));
+    if (state.einst.katNurOffen) autoren = offeneAutoren;
+    const sichtbar = autoren.slice(0, state.katAnzahl);
+    $('kat-liste').innerHTML = !autoren.length
+      ? `<p class="muted">${state.einst.katNurOffen ? 'Alle Autoren haben eine Kategorie.' : 'Keine Autoren vorhanden.'}</p>`
+      : sichtbar.map(x => {
+        const offen = state.katOffen.has(x.autor);
+        const bueche = !offen ? '' : `<ul class="kat-buecher">${x.buecher.map(b => {
+          const k = kategorieVonBuch(b, state.kat, kategorien);
+          return `<li><span class="titel">${esc(b.basisTitel || b.titel)}${k ? ` <span class="quelle">· ${quelleText[k.quelle]}</span>` : ''}</span><select data-buch="${esc(b.id)}" aria-label="Kategorie für ${esc(b.titel)}">${optionen(state.kat.buch[b.id], k && k.quelle !== 'buch' ? `wie bisher: ${esc(k.name)}` : '– wie Autor –')}</select></li>`;
+        }).join('')}</ul>`;
+        return `<div class="kat-autor"><div class="kat-kopf"><span class="name">${esc(x.autor)}</span><span class="meta">${zahl(x.buecher.length)} ${buecherWort(x.buecher.length)}</span><select data-autor="${esc(x.autor)}" aria-label="Kategorie für ${esc(x.autor)}">${optionen(state.kat.autor[x.autor], '– keine –')}</select><button type="button" data-kat-buecher="${esc(x.autor)}" aria-expanded="${offen}">${offen ? 'Bücher ausblenden' : 'Bücher'}</button></div>${bueche}</div>`;
+      }).join('') + (autoren.length > sichtbar.length ? `<p><button type="button" id="kat-mehr">Mehr anzeigen (${zahl(autoren.length - sichtbar.length)} weitere Autoren)</button></p>` : '');
+    if (!state.einst.katNurOffen && offeneAutoren.length) $('kat-liste').insertAdjacentHTML('afterbegin', `<p class="muted small">${zahl(offeneAutoren.length)} von ${zahl(autorenFuerZuordnung(alle).length)} Autoren haben noch keine Kategorie.</p>`);
   }
 
   /* ---------- Reihen ---------- */
@@ -2563,10 +2734,10 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
   }
 
   $('btn-reset').addEventListener('click', async () => {
-    const hatManuelles = Object.keys(state.overrides).length || state.dq.keine.length || state.dq.ausgeschlossen.length;
+    const hatManuelles = Object.keys(state.overrides).length || state.dq.keine.length || state.dq.ausgeschlossen.length || Object.keys(state.kat.autor).length || Object.keys(state.kat.buch).length;
     const antwort = await frage('Daten zurücksetzen',
       hatManuelles
-        ? 'Die gespeicherte CSV wird aus diesem Browser gelöscht. Deine manuellen Angaben (nachgetragene Seitenzahlen, Dubletten-Markierungen) kannst du behalten oder mitlöschen.'
+        ? 'Die gespeicherte CSV wird aus diesem Browser gelöscht. Deine manuellen Angaben (nachgetragene Seitenzahlen, Dubletten-Markierungen, Kategorien-Zuordnungen) kannst du behalten oder mitlöschen.'
         : 'Die gespeicherte CSV wird aus diesem Browser gelöscht.',
       hatManuelles
         ? [{ label: 'Abbrechen', wert: null }, { label: 'Nur CSV löschen', wert: 'csv' }, { label: 'Alles löschen', wert: 'alles', klasse: 'danger' }]
@@ -2574,8 +2745,8 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     if (!antwort) return;
     ls.del(SPEICHER.csv); ls.del(SPEICHER.dateiname); ls.del(SPEICHER.dateidatum);
     if (antwort === 'alles') {
-      ls.del(SPEICHER.seiten); ls.del(SPEICHER.dq);
-      state.overrides = {}; state.dq = { keine: [], ausgeschlossen: [] };
+      ls.del(SPEICHER.seiten); ls.del(SPEICHER.dq); ls.del(SPEICHER.kat);
+      state.overrides = {}; state.dq = { keine: [], ausgeschlossen: [] }; state.kat = { autor: {}, buch: {} };
     }
     state.datensaetze = []; state.alle = []; state.lese = []; state.buecher = []; state.dateiname = '';
     zeigeUpload(true);
@@ -2620,6 +2791,57 @@ function waehleVergleiche(wert, einheit, liste = VERGLEICHE, k = KONFIG) {
     renderZufall();
   });
   $('btn-png').addEventListener('click', speicherePNG);
+  // Kategorien: Auswahl je Autor oder Buch, Bücherlisten, Verwalten, Filter
+  function mitFokus(aktion) {
+    const a = document.activeElement;
+    const merk = a && a.dataset ? ['autor', 'buch', 'katBuecher'].map(k => a.dataset[k] != null ? [k, a.dataset[k]] : null).find(Boolean) : null;
+    aktion();
+    if (merk) {
+      const attr = { autor: 'data-autor', buch: 'data-buch', katBuecher: 'data-kat-buecher' }[merk[0]];
+      const neu = [...document.querySelectorAll(`#kat-liste [${attr}]`)].find(x => x.getAttribute(attr) === merk[1]);
+      if (neu) neu.focus();
+    }
+  }
+  $('kat-liste').addEventListener('change', e => {
+    const sel = e.target.closest('select');
+    if (!sel) return;
+    mitFokus(() => {
+      if (sel.dataset.autor != null) { if (sel.value) state.kat.autor[sel.dataset.autor] = sel.value; else delete state.kat.autor[sel.dataset.autor]; }
+      else if (sel.dataset.buch != null) { if (sel.value) state.kat.buch[sel.dataset.buch] = sel.value; else delete state.kat.buch[sel.dataset.buch]; }
+      speichereKat(); render();
+    });
+  });
+  $('kat-liste').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.id === 'kat-mehr') { state.katAnzahl += 40; render(); return; }
+    if (b.dataset.katBuecher != null) {
+      mitFokus(() => { const a = b.dataset.katBuecher; if (state.katOffen.has(a)) state.katOffen.delete(a); else state.katOffen.add(a); render(); });
+    }
+  });
+  $('chk-kat-offen').addEventListener('change', e => { state.einst.katNurOffen = e.target.checked; state.katAnzahl = 40; speichereEinstellungen(); render(); });
+  $('kat-neu').addEventListener('submit', e => {
+    e.preventDefault();
+    const name = $('inp-kat-neu').value.replace(/\s+/g, ' ').trim();
+    if (!name) { $('inp-kat-neu').focus(); return; }
+    const vorhanden = state.einst.kategorien.some(k => normalisiereFuerVergleich(k) === normalisiereFuerVergleich(name));
+    if (!vorhanden) { state.einst.kategorien.push(name); speichereEinstellungen(); }
+    $('inp-kat-neu').value = '';
+    render();
+  });
+  $('kat-chips').addEventListener('click', async e => {
+    const b = e.target.closest('[data-kat-weg]');
+    if (!b) return;
+    const name = b.dataset.katWeg;
+    const betroffen = Object.values(state.kat.autor).filter(v => v === name).length + Object.values(state.kat.buch).filter(v => v === name).length;
+    const antwort = await frage(`Kategorie „${name}“ löschen?`, betroffen ? `${zahl(betroffen)} ${betroffen === 1 ? 'Zuordnung wird' : 'Zuordnungen werden'} damit ebenfalls entfernt.` : 'Die Kategorie wird aus der Liste entfernt.',
+      [{ label: 'Abbrechen', wert: null }, { label: 'Löschen', wert: 'ja', klasse: 'danger' }]);
+    if (!antwort) return;
+    state.einst.kategorien = state.einst.kategorien.filter(k => k !== name);
+    for (const t of ['autor', 'buch']) for (const [k, v] of Object.entries(state.kat[t])) if (v === name) delete state.kat[t][k];
+    speichereEinstellungen(); speichereKat(); render();
+  });
+  document.querySelectorAll('#seg-kat button').forEach(b => b.addEventListener('click', () => { state.einst.katModus = b.dataset.kat; speichereEinstellungen(); render(); }));
   document.querySelectorAll('#seg-diagramm button').forEach(b => b.addEventListener('click', () => {
     state.einst.diagramm = b.dataset.modus; speichereEinstellungen(); render();
   }));
